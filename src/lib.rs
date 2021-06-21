@@ -7,20 +7,14 @@ Duis iaculis faucibus mollis. Maecenas dignissim efficitur ex. Sed pulvinar just
 # Using the Strip MapMaking
 
 Duis iaculis faucibus mollis. Maecenas dignissim efficitur ex. Sed pulvinar justo a arcu lobortis imperdiet. Suspendisse placerat venenatis volutpat. Aenean eu nulla vitae libero porta dignissim ut sit amet ante. Vestibulum porttitor sodales nibh, nec imperdiet tortor accumsan quis. Ut sagittis arcu eu efficitur varius. Etiam at ex condimentum, volutpat ipsum sed, posuere nibh. Sed posuere fringilla mi in commodo. Ut sodales, elit volutpat finibus dapibus, dui lacus porttitor enim, ac placerat erat ligula quis ipsum. Morbi sagittis et nisl mollis fringilla. Praesent commodo faucibus erat, nec congue lectus finibus vitae. Sed eu ipsum in lorem congue vehicula. 
-
-
 */
 
 pub mod directory;
 pub mod iteratorscustom;
 pub mod sky;
 pub mod noisemodel;
+pub mod conjugategradient;
 
-/*
-use conjugategradient::beta;
-use conjugategradient::cg;
-```
-*/
 use std::fs::File;
 use std::io::Write;
 use colored::Colorize;
@@ -28,8 +22,6 @@ use num::ToPrimitive;
 //use rand_distr::{Distribution, Normal};
 use sky::Sky;
 use noisemodel::NoiseModel;
-
-
 
 #[derive(Debug)]
 pub struct Obs {
@@ -42,7 +34,6 @@ pub struct Obs {
     pix: Vec<Vec<i32>>,
     tod: Vec<Vec<f32>>,
 }
-
 
 // ```
 // Documentation
@@ -246,10 +237,50 @@ impl Obs {
 
     }
 
-    pub fn use_obs(&self) {
-        drop(&self.tod);
-        drop(&self.pix);
-        println!("{}", "Freed something?".bright_red()); // no.
-    }
 
+    pub fn gls_denoise(&self, tol: f32, maxiter: usize, nside: usize){
+              
+        const NUM_PIX: usize = 12*128*128;
+
+        let tods = self.get_tod();
+        let pixs = self.get_pix();
+        let mut b: Vec<f32> = Vec::new();
+        for i in 0..NUM_PIX {
+            b.push(0.0);
+        }
+
+        for (i, j) in tods.iter().zip(pixs.iter()) {
+            let tod = denoise(i, alpha, f_knee, sigma);
+            let (map, hit) = bin_map(tod, j, nside);
+            for i in 0..NUM_PIX {
+                b[i] += map[i];
+            }
+            
+            
+        }
+
+        let mut A = |x| {
+            
+            let mut res: Vec<f32> = Vec::new();
+            for i in 0..NUM_PIX {
+                res.push(0.0);
+            }
+            let mut tod: Vec<Vec<f32>> = Vec::new();
+
+            for i_det in pixs.iter() {
+                let mut tmp_tod: Vec<f32> = Vec::new();
+                for pix in i_det {
+                    let idx = match pix.to_usize() {Some(p) => p, None=> 0,};
+                    tmp_tod.push(x[idx]);
+                }
+                let mut tmp_tod = denoise(tmp_tod, alpha, f_knee, sigma);
+                tod.push(tmp_tod);
+                let (map, hit) = bin_map(tod, i_det, nside);
+                for i in 0..NUM_PIX {
+                    res[i] += map[i];
+                }
+            }
+            
+        };
+    }
 }
