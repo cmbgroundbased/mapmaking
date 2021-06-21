@@ -20,6 +20,8 @@ colored = "2.0.0"
 clap = "2.33.3"
 wildmatch = "2.1.0"
 num_cpus = "1.13.0"
+fftw = "0.7.0"
+gnuplot = "0.0.37"
 
 [package.metadata.docs.rs]
 # Enable certain features when building docs for docs.rs

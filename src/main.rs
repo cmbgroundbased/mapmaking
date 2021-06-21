@@ -53,6 +53,13 @@ fn main() {
 pub fn split_mc(p: String, id: &str) -> &str {
 	let directory_tree = DirStruct::new(Path::new(&*p), String::from("1")).unwrap();
 	let _my_obs = directory_tree.create_observations(id);
+
+	let tods = _my_obs.get_tod();
+	for i in tods.iter() {
+
+		mapmaking::denoise(i.clone(), 5.0/11.0, 0.1, 0.03);
+	}
+
 	_my_obs.binning();
 	// _my_obs.dummy_denoise();
 	// _my_obs.use_obs();
