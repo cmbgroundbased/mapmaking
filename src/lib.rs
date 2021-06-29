@@ -15,10 +15,11 @@ pub mod sky;
 pub mod noisemodel;
 pub mod conjugategradient;
 
+use std::f64::consts::PI;
 use std::fs::File;
 use std::io::Write;
 use colored::Colorize;
-use num::ToPrimitive;
+use num::{Float, ToPrimitive};
 use num::complex::Complex32;
 //use rand_distr::{Distribution, Normal};
 use sky::Sky;
@@ -29,6 +30,7 @@ use fftw::types::*;
 use gnuplot::*;
 
 use crate::conjugategradient::conjgrad;
+
 
 
 
@@ -247,6 +249,124 @@ impl Obs {
     }
 }
 
+
+pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> Vec<f32> {
+
+    let samples = match tod.len().to_f32(){Some(p) => p, None => 0.0};
+    let f_min = 1.0/(fs*samples);
+    let f_max = 0.5 * (1.0 / fs );
+
+    let mut freq: Vec<f32> = Vec::new();
+
+    let mut _f1 = iteratorscustom::FloatIterator::new(
+        -f_max,
+        -f_min,
+        match (f32::floor(samples/2.0)-1.0).to_u32() {Some(p) => p, None => 0} + 1
+    );
+
+    let mut _f2 = iteratorscustom::FloatIterator::new(
+        f_min, 
+        f_max - f_min, 
+        match (f32::floor(samples/2.0)).to_u32() {Some(p) => p, None => 0}
+    );
+
+   
+    for i in _f1 {
+        freq.push(i);
+    }
+    for i in _f2 {
+        freq.push(i);
+    }
+
+    let mut r2r: R2RPlan32 = R2RPlan::aligned(&[tod.len()], R2RKind::FFTW_DHT, Flag::MEASURE).unwrap();
+    let mut a = AlignedVec::new(tod.len());
+    let mut b = AlignedVec::new(tod.len());
+
+    let _k0 = 2.0 * PI / tod.len() as f64;
+
+    for i in 0..tod.len() {
+        a[i] = tod[i];
+    }
+
+    // Perform the fft
+    r2r.r2r(&mut a, &mut b).unwrap();
+
+
+    // for i in 0..10 {
+    //     0 1 2 .. 9
+    // }
+
+    let mut noise_prior: Vec<f32> = Vec::new();
+    let PI32 = match PI.to_f32() { Some(p) => p, None => 0.0 };
+
+    // Noise prior
+    // 4..9 = 5 6 7 8 9
+    // 2..6 = 0 1 2 3 4
+    //        9 8 7 6 5  
+    for f in (freq.len()/2)..(freq.len()) {  
+        let n_p = f32::powf((2.0 * PI32) / (freq[f]), _alpha.clone());
+        noise_prior.push(n_p); 
+    }
+    
+    for f in 0..(freq.len()/2) {
+        let n_p: f32 = f32::powf( (2.0 * PI32) / (freq[tod.len() - 1 - f]), _alpha.clone());
+        noise_prior.push(n_p);
+    }
+
+        /* DEBUG    
+    *********************************************************************/
+    // let mut fg = Figure::new();
+    // let mut fg2 = Figure::new();
+    // fg.axes2d().
+    //     lines(freq.clone(), noise_prior.to_vec(), &[Caption("asdasd")]).
+    //     points(freq.clone(), b.to_vec(), &[Caption("")]);
+    // fg.show().unwrap();
+    /*********************************************************************
+    */
+
+    // Denoise
+    let mut tod_corrected: Vec<f32> = Vec::new();
+    for i in b.iter().zip(noise_prior.iter()){
+        tod_corrected.push(i.0/i.1);
+    }
+
+    /* DEBUG    
+    *********************************************************************/
+    let mut fg = Figure::new();
+    fg.axes2d().
+        points(freq.clone(), tod_corrected.to_vec(), &[Caption("asdasd")]).
+        points(freq.clone(), b.to_vec(), &[Caption("asd")]);
+
+    fg.show().unwrap();
+    /*********************************************************************
+    */
+
+    let mut r2r: R2RPlan32 = R2RPlan::aligned(&[tod.len()], R2RKind::FFTW_DHT,Flag::MEASURE).unwrap();
+    let mut c = AlignedVec::new(tod.len());
+    let mut d    = AlignedVec::new(tod.len());
+
+    for i in 0..(tod.len()-1) {
+        c[i] = tod_corrected[i];
+    }
+    r2r.r2r(&mut c, &mut d).unwrap();
+    
+    /* DEBUG    
+    ********************************************************************
+    // let mut fg = Figure::new();
+    // fg.axes2d().points(0..d.len(), d.to_vec(), &[Caption("asdasd")]);
+    // fg.show().unwrap();
+    ********************************************************************
+    */
+    
+    let mut tod_corrected: Vec<f32> = Vec::new();
+    for i in d.to_vec() {
+        tod_corrected.push(i);
+    }
+
+    tod_corrected
+    
+}
+
 impl Obs {
 
     pub fn gls_denoise(&self, tol: f32, maxiter: usize, nside: usize){
@@ -260,59 +380,71 @@ impl Obs {
             b.push(0.0);
         }
 
+        let _x = b.clone();
+
         for (i, j) in tods.iter().zip(pixs.iter()) {
-            let tod = denoise(i.clone(), 5.0/11.0, 0.1, 0.003);
-            let (map, hit) = bin_map(tod, j.clone(), nside); // ERROREEEEE!!!!
+            let tod = denoise(i.clone(), 5.0/3.0, 0.1, 300.0, 20.0);
+            let (map, _) = bin_map(tod.clone(), &j.clone(), nside);
             for i in 0..NUM_PIX {
                 b[i] += map[i];
             }
-            
-            
         }
 
-        // Check the iteration on the detectors. Is it correct here or do I have to do it 
-        // into the CG function? In my opinion the CG fun has to manage only one TOD
-
-        let mut a = |x: Vec<f32>| {
-            
-            let mut res: Vec<f32> = Vec::new();
-            for _i in 0..NUM_PIX {
-                res.push(0.0);
-            }
-            let mut tod: Vec<Vec<f32>> = Vec::new();
-
-            for i_det in pixs.iter() {
-                let mut tmp: Vec<f32> = Vec::new();
-                for pix in i_det {
-                    let idx = match pix.to_usize() {Some(p) => p, None=> 0,};
-                    tmp.push(x[idx]);
+        fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
+            Box::new(|_x: Vec<f32>, puntamenti:Vec<Vec<i32>>|  {
+                let mut res: Vec<f32> = Vec::new();
+                for _i in 0..NUM_PIX {
+                    res.push(0.0);
                 }
-                let mut _tmp = denoise(tmp, 5.0/11.0, 0.1, 0.003);
-                let mut _tmp_b = _tmp.clone();
-                tod.push(_tmp);
-                let (map, _) = bin_map(_tmp_b, i_det.clone(), nside);
-                for i in 0..NUM_PIX {
-                    res[i] += map[i];
+                for i_det in puntamenti.iter(){
+                    let mut _tmp: Vec<f32> = Vec::new();
+                    
+                    for pix in i_det.iter() {
+                        let pix_id = match pix.to_usize(){Some(p) => p, None => 0};
+                        _tmp.push(_x[pix_id]);
+                        
+                    }
+                    let tmp_denoise = denoise(_tmp, 5.0/3.0, 0.1, 300.0, 20.0);
+                    let (map, _) = bin_map(tmp_denoise, i_det, 128);
+
+                    for i in 0..NUM_PIX{
+                        res[i] += map[i];
+                    }
+
                 }
-            }
-            return res;
-            
-        };
+                res 
+            })
+        }
 
-        let mut precon = |x: Vec<f32>, y: Vec<f32> | {
-            let mut out: Vec<f32> = Vec::new();
-            for i in 0..x.len() {
-                out.push(y[i]);
-            }
-            out 
-         };
+        fn p() -> Box<dyn Fn(Vec<f32>) -> Vec<f32>> {
+            Box::new(|x| x)
+        }
 
-        let mut map = conjgrad(a, b, 1E-10, 100, precon);
+        let _map = conjgrad(a(), b, tol, maxiter, p(), pixs);
+        
+        /*PRINT ON FILE
+        ************************************************************************/
+        println!("");
+        let id_number = self.get_mcid();
+        let file_name = format!("mappe_{}.dat", id_number);
 
+        println!("Print maps on file: {}", file_name.bright_green().bold());
+
+        let mut f = File::create(file_name).unwrap();
+
+        let sig: Vec<String> = _map.iter().map(|a| a.to_string()).collect();
+
+        for i in sig.iter() {
+            writeln!(f, "{}", i).unwrap();
+        }
+
+        println!("{}", "WRITE MAP COMPLETED".bright_green());
+        /*
+        ************************************************************************/
     }
 }
 
-pub fn bin_map(tod: Vec<f32>, pix: Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i32>) {
+pub fn bin_map(tod: Vec<f32>, pix: &Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i32>) {
 
     let num_pixs: usize = 12*nside*nside;
 
@@ -337,40 +469,3 @@ pub fn bin_map(tod: Vec<f32>, pix: Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i32
 }
 
 
-pub fn denoise(tod: Vec<f32>, alpha: f32, f_k: f32, sigma: f32) -> Vec<f32> {
-    
-    // Do the complex to complex C2C
-
-    let mut c2r: C2RPlan64 = C2RPlan::aligned(&[tod.len()], Flag::MEASURE).unwrap();
-    let mut a = AlignedVec::new(tod.len()/2 + 1);
-    let mut b: AlignedVec<f64> = AlignedVec::new(tod.len());
-
-    for i in 0..(tod.len() / 2 + 1) {
-        a[i] = c64::new(match tod[i].to_f64(){Some(p)=> p, None => 0.0}, 0.0);
-    }
-    c2r.c2r(&mut a, &mut b).unwrap();
-
-    let mut index: f64 = 0.5;
-    let mut y: Vec<f64> = Vec::new();
-    let mut x: Vec<f64> = Vec::new();
-
-    for i in 1..(tod.len()/2+1) {
-        x.push(index.log10());  
-        let b = b.to_vec();
-        y.push(b[i].log10());
-        index += 1.0;
-    }
-    
-    // Filter it out by the nois prior
-
-    let tod_corrected: Vec<f32> = Vec::new();
-
-    tod_corrected
-    // let mut fg = gnuplot::Figure::new();
-
-
-    // fg.axes2d().lines_points(&x, &y, &[Caption("A line"), Color("black")]);
-    
-    // fg.show().unwrap();
-
-}
