@@ -24,7 +24,7 @@ fn main() {
 					 .arg(Arg::with_name("mc_id").short("i").long("mc_id").takes_value(true).help("Returns the map at the `mc_id` Monte Carlo iteration"))
 					 .get_matches();
 
-	const NUM_THREADS: usize = 5;
+	const NUM_THREADS: usize = 1;
 	const NUM_MC_ITER: usize = 50;
 	let my_pool = ThreadPool::new(NUM_THREADS);
 
@@ -54,14 +54,9 @@ pub fn split_mc(p: String, id: &str) -> &str {
 	let directory_tree = DirStruct::new(Path::new(&*p), String::from("1")).unwrap();
 	let _my_obs = directory_tree.create_observations(id);
 
-	let tods = _my_obs.get_tod();
-	for i in tods.iter() {
-
-		mapmaking::denoise(i.clone(), 5.0/11.0, 0.1, 0.03);
-	}
-
-	_my_obs.binning();
+	// _my_obs.binning();
 	// _my_obs.dummy_denoise();
 	// _my_obs.use_obs();
+	_my_obs.gls_denoise(1E-5, 10, 128);
 	id
 }
