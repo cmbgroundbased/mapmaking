@@ -14,13 +14,15 @@ pub mod iteratorscustom;
 pub mod sky;
 pub mod noisemodel;
 pub mod conjugategradient;
+pub mod conjugategradient2;
 
 use std::f64::consts::PI;
 use std::fs::File;
 use std::io::Write;
 use colored::Colorize;
-use num::{Float, ToPrimitive};
-use num::complex::Complex32;
+
+use num::ToPrimitive;
+
 //use rand_distr::{Distribution, Normal};
 use sky::Sky;
 use noisemodel::NoiseModel;
@@ -30,6 +32,8 @@ use fftw::types::*;
 use gnuplot::*;
 
 use crate::conjugategradient::conjgrad;
+use crate::conjugategradient2::conjgrad2;
+
 
 
 
@@ -157,7 +161,7 @@ impl Obs {
         /***PRINT ON FILE */
         println!("");
         let id_number = self.get_mcid();
-        let file_name = format!("mappe_{}.dat", id_number);
+        let file_name = format!("binned_{}.dat", id_number);
 
         println!("Print maps on file: {}", file_name.bright_green().bold());
 
@@ -304,22 +308,28 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
     // 2..6 = 0 1 2 3 4
     //        9 8 7 6 5  
     for f in (freq.len()/2)..(freq.len()) {  
-        let n_p = f32::powf((2.0 * PI32) / (freq[f]), _alpha.clone());
+
+        let n_p = f32::powf(_sigma * ( 1.0 + _f_k/(freq[f]+0.00005) ), _alpha.clone());
+
         noise_prior.push(n_p); 
     }
     
     for f in 0..(freq.len()/2) {
-        let n_p: f32 = f32::powf( (2.0 * PI32) / (freq[tod.len() - 1 - f]), _alpha.clone());
+
+        let n_p: f32 = f32::powf( _sigma * (1.0 + _f_k/(freq[tod.len() - 1 - f]+0.00005)), _alpha.clone());
+
         noise_prior.push(n_p);
     }
 
         /* DEBUG    
     *********************************************************************/
     // let mut fg = Figure::new();
-    // let mut fg2 = Figure::new();
+
     // fg.axes2d().
-    //     lines(freq.clone(), noise_prior.to_vec(), &[Caption("asdasd")]).
-    //     points(freq.clone(), b.to_vec(), &[Caption("")]);
+
+    //     points(freq.clone(), b.to_vec(), &[Caption("FFT"), Color("red")]).
+    //     lines(freq.clone(), noise_prior.to_vec(), &[Caption("Nois Prior"), Color("black")]);
+        
     // fg.show().unwrap();
     /*********************************************************************
     */
@@ -332,12 +342,11 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
 
     /* DEBUG    
     *********************************************************************/
-    let mut fg = Figure::new();
-    fg.axes2d().
-        points(freq.clone(), tod_corrected.to_vec(), &[Caption("asdasd")]).
-        points(freq.clone(), b.to_vec(), &[Caption("asd")]);
-
-    fg.show().unwrap();
+    // let mut fg = Figure::new();
+    // fg.axes2d().
+    //     points(freq.clone(), tod_corrected.to_vec(), &[Caption("asdasd")]).
+    //     points(freq.clone(), b.to_vec(), &[Caption("asd")]);
+    // fg.show().unwrap();
     /*********************************************************************
     */
 
@@ -370,7 +379,9 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
 impl Obs {
 
     pub fn gls_denoise(&self, tol: f32, maxiter: usize, nside: usize){
-              
+        
+        println!("{}", "gls_denoise process in execution...".blue());
+
         const NUM_PIX: usize = 12*128*128;
 
         let tods = self.get_tod();
@@ -383,7 +394,14 @@ impl Obs {
         let _x = b.clone();
 
         for (i, j) in tods.iter().zip(pixs.iter()) {
-            let tod = denoise(i.clone(), 5.0/3.0, 0.1, 300.0, 20.0);
+
+            let tod = denoise(i.clone(), 11.0/3.0, 0.0005, 1.0, 20.0);
+            // let mut fg = Figure::new();
+            // fg.axes2d().
+            //     points(0..i.len(), i, &[Caption("RAW"), Color("red")]).
+            //     lines(0..tod.len(), tod.clone().iter().map(|f| f / 1000.0).collect::<Vec<f32>>(), &[Caption("DENOISED"), Color("black")]);
+
+            // fg.show().unwrap();
             let (map, _) = bin_map(tod.clone(), &j.clone(), nside);
             for i in 0..NUM_PIX {
                 b[i] += map[i];
@@ -404,7 +422,8 @@ impl Obs {
                         _tmp.push(_x[pix_id]);
                         
                     }
-                    let tmp_denoise = denoise(_tmp, 5.0/3.0, 0.1, 300.0, 20.0);
+
+                    let tmp_denoise = denoise(_tmp, 11.0/3.0, 0.0015, 3.0, 20.0);
                     let (map, _) = bin_map(tmp_denoise, i_det, 128);
 
                     for i in 0..NUM_PIX{
@@ -420,13 +439,16 @@ impl Obs {
             Box::new(|x| x)
         }
 
-        let _map = conjgrad(a(), b, tol, maxiter, p(), pixs);
+
+        let _map = conjgrad2(a(), b, tol, maxiter, p(), pixs);
+
         
         /*PRINT ON FILE
         ************************************************************************/
         println!("");
         let id_number = self.get_mcid();
-        let file_name = format!("mappe_{}.dat", id_number);
+
+        let file_name = format!("gls_denoise_{}.dat", id_number);
 
         println!("Print maps on file: {}", file_name.bright_green().bold());
 
@@ -437,8 +459,7 @@ impl Obs {
         for i in sig.iter() {
             writeln!(f, "{}", i).unwrap();
         }
-
-        println!("{}", "WRITE MAP COMPLETED".bright_green());
+("{}", "WRITE MAP COMPLETED".bright_green());
         /*
         ************************************************************************/
     }
@@ -469,3 +490,109 @@ pub fn bin_map(tod: Vec<f32>, pix: &Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i3
 }
 
 
+impl Obs {
+    pub fn atm_mitigation(&self, baselines_length: usize, maxiter: usize, tol: f32, nside: usize){ // It does not work...
+        
+        println!("{}", "atm_mitigation process in execution...".blue());
+
+        const NUM_PIX: usize = 12*128*128;
+
+        let tods = self.get_tod();
+        let pixs = self.get_pix();
+        
+        let mut b: Vec<f32> = Vec::new();
+        let mut x: Vec<f32> = Vec::new();
+
+        let b_l = baselines_length*20;
+        let b_l_f32 = match (baselines_length*20).to_f32(){Some(p) => p, None => 0.0};
+
+        for _i in 0..NUM_PIX {
+            b.push(0.0);
+            x.push(0.0);
+        }
+
+        for (i, j) in tods.iter().zip(pixs.iter()) {
+            let mut new_tod: Vec<f32> = Vec::new();
+            
+
+            for c in i.chunks(b_l) {
+                let mut avg: f32 = c.iter().map(|i| i).sum();
+                avg /= b_l_f32;
+                let mut new_c: Vec<f32> = c.iter().map(|i| i-avg).collect();
+                new_tod.append(&mut new_c);
+            } 
+            let (map, hit) = bin_map(new_tod.clone(), &j.clone(), nside);
+            //let map: Vec<f32> = map.iter().zip(hit.iter()).map(|p| *p.0 / match (*p.1).to_f32(){Some(p) => p, None=>0.0}).collect();
+            for i in 0..NUM_PIX {
+                b[i] += map[i];
+            }
+        }
+        
+        fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
+            Box::new(|_x: Vec<f32>, puntamenti:Vec<Vec<i32>>|  { 
+                let mut res: Vec<f32> = Vec::new();
+                for _i in 0..NUM_PIX {
+                    res.push(0.0);
+                }
+                for i_det in puntamenti.iter(){
+                    let mut _tmp: Vec<f32> = Vec::new();
+                    for pix in i_det.iter() {
+                        let pix_id = match pix.to_usize(){Some(p) => p, None => 0};
+                        _tmp.push(_x[pix_id]);                      
+                    }
+                    let mut tmp_denoised: Vec<f32> = Vec::new();
+                    
+                    /*HARDCODED!!!!!!**************** */
+                    let baselines_length = 1*20;
+                    /******************************** */
+                    
+                    let b_l = baselines_length*20;
+                    let b_l_f32 = match (baselines_length*20).to_f32(){Some(p) => p, None => 0.0};
+
+                    for c in _tmp.chunks(b_l) {
+                        let mut avg: f32 = c.iter().map(|i| i).sum();
+                        avg /= b_l_f32;
+                        let mut new_c: Vec<f32> = c.iter().map(|i| i-avg).collect();
+                        tmp_denoised.append(&mut new_c);
+                    } 
+
+                    let (map, _) = bin_map(tmp_denoised, i_det, 128);
+
+                    for i in 0..NUM_PIX{
+                        res[i] += map[i];
+                    }
+                }
+               _x 
+            })
+        }
+
+        fn p() -> Box<dyn Fn(Vec<f32>) -> Vec<f32>> {
+            Box::new(|x| x)
+        }
+
+        let _map = conjgrad2(a(), b, tol, maxiter, p(), pixs);
+        
+        /*PRINT ON FILE
+        ************************************************************************/
+        println!("");
+        let id_number = self.get_mcid();
+        let file_name = format!("atm_destripe_{}.dat", id_number);
+
+        println!("Print maps on file: {}", file_name.bright_green().bold());
+
+        let mut f = File::create(file_name).unwrap();
+
+        let sig: Vec<String> = _map.iter().map(|a| a.to_string()).collect();
+
+        for i in sig.iter() {
+            writeln!(f, "{}", i).unwrap();
+        }
+
+        println!("{}", "WRITE MAP COMPLETED".bright_green());
+        /*
+        ************************************************************************/
+
+
+        
+    }
+}
