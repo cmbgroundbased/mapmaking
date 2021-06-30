@@ -4,6 +4,7 @@ pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>, b: Vec<f32>
     let mut r = b.clone();
     let n: usize = b.len();
 
+
     let z = pr(r.clone()); //*************** */
     let mut _rz: f32 = 0.0;
 
@@ -23,7 +24,9 @@ pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>, b: Vec<f32>
         let pap: f32 = p.clone().iter().zip(ap.iter()).map(|c| c.0 * c.1).sum();
         let alpha = _rz / pap;
 
+
         println!("Alpha: {}", alpha);
+
         for i in 0..n {
             x[i] += alpha * p[i];
             r[i] -= alpha * ap[i];

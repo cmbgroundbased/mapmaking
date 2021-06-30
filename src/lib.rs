@@ -20,7 +20,9 @@ use std::f64::consts::PI;
 use std::fs::File;
 use std::io::Write;
 use colored::Colorize;
+
 use num::ToPrimitive;
+
 //use rand_distr::{Distribution, Normal};
 use sky::Sky;
 use noisemodel::NoiseModel;
@@ -31,6 +33,7 @@ use gnuplot::*;
 
 use crate::conjugategradient::conjgrad;
 use crate::conjugategradient2::conjgrad2;
+
 
 
 
@@ -305,18 +308,23 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
     // 2..6 = 0 1 2 3 4
     //        9 8 7 6 5  
     for f in (freq.len()/2)..(freq.len()) {  
+
         let n_p = f32::powf(_sigma * ( 1.0 + _f_k/(freq[f]+0.00005) ), _alpha.clone());
+
         noise_prior.push(n_p); 
     }
     
     for f in 0..(freq.len()/2) {
+
         let n_p: f32 = f32::powf( _sigma * (1.0 + _f_k/(freq[tod.len() - 1 - f]+0.00005)), _alpha.clone());
+
         noise_prior.push(n_p);
     }
 
         /* DEBUG    
     *********************************************************************/
     // let mut fg = Figure::new();
+
     // fg.axes2d().
 
     //     points(freq.clone(), b.to_vec(), &[Caption("FFT"), Color("red")]).
@@ -386,6 +394,7 @@ impl Obs {
         let _x = b.clone();
 
         for (i, j) in tods.iter().zip(pixs.iter()) {
+
             let tod = denoise(i.clone(), 11.0/3.0, 0.0005, 1.0, 20.0);
             // let mut fg = Figure::new();
             // fg.axes2d().
@@ -413,6 +422,7 @@ impl Obs {
                         _tmp.push(_x[pix_id]);
                         
                     }
+
                     let tmp_denoise = denoise(_tmp, 11.0/3.0, 0.0015, 3.0, 20.0);
                     let (map, _) = bin_map(tmp_denoise, i_det, 128);
 
@@ -429,12 +439,15 @@ impl Obs {
             Box::new(|x| x)
         }
 
+
         let _map = conjgrad2(a(), b, tol, maxiter, p(), pixs);
+
         
         /*PRINT ON FILE
         ************************************************************************/
         println!("");
         let id_number = self.get_mcid();
+
         let file_name = format!("gls_denoise_{}.dat", id_number);
 
         println!("Print maps on file: {}", file_name.bright_green().bold());
@@ -446,8 +459,7 @@ impl Obs {
         for i in sig.iter() {
             writeln!(f, "{}", i).unwrap();
         }
-
-        println!("{}", "WRITE MAP COMPLETED".bright_green());
+("{}", "WRITE MAP COMPLETED".bright_green());
         /*
         ************************************************************************/
     }
@@ -584,19 +596,3 @@ impl Obs {
         
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
