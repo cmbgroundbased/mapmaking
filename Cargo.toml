@@ -22,6 +22,9 @@ wildmatch = "2.1.0"
 num_cpus = "1.13.0"
 fftw = "0.7.0"
 gnuplot = "0.0.37"
+criterion-plot = "0.4.3"
+itertools-num = "0.1.3"
+rustfft = "6.0.1"
 
 [package.metadata.docs.rs]
 # Enable certain features when building docs for docs.rs

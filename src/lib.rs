@@ -8,13 +8,14 @@ Duis iaculis faucibus mollis. Maecenas dignissim efficitur ex. Sed pulvinar just
 
 Duis iaculis faucibus mollis. Maecenas dignissim efficitur ex. Sed pulvinar justo a arcu lobortis imperdiet. Suspendisse placerat venenatis volutpat. Aenean eu nulla vitae libero porta dignissim ut sit amet ante. Vestibulum porttitor sodales nibh, nec imperdiet tortor accumsan quis. Ut sagittis arcu eu efficitur varius. Etiam at ex condimentum, volutpat ipsum sed, posuere nibh. Sed posuere fringilla mi in commodo. Ut sodales, elit volutpat finibus dapibus, dui lacus porttitor enim, ac placerat erat ligula quis ipsum. Morbi sagittis et nisl mollis fringilla. Praesent commodo faucibus erat, nec congue lectus finibus vitae. Sed eu ipsum in lorem congue vehicula. 
 */
-
+extern crate rustfft;
 pub mod directory;
 pub mod iteratorscustom;
 pub mod sky;
 pub mod noisemodel;
 pub mod conjugategradient;
 pub mod conjugategradient2;
+pub mod plot_suite;
 
 use std::f64::consts::PI;
 use std::fs::File;
@@ -29,13 +30,15 @@ use noisemodel::NoiseModel;
 use fftw::array::AlignedVec;
 use fftw::plan::*;
 use fftw::types::*;
+
+use rustfft::FftPlanner;
+use rustfft::num_complex::Complex;
+use rustfft::num_traits::Zero;
+
+use plot_suite::plot_vector;
 use gnuplot::*;
 
-use crate::conjugategradient::conjgrad;
 use crate::conjugategradient2::conjgrad2;
-
-
-
 
 
 #[derive(Debug)]
@@ -72,10 +75,11 @@ impl Obs {
             for (i, j) in tod.into_iter().zip(pix.iter()){
                 let noise = NoiseModel::new(50.0, 7e9, 1.0/20.0, 0.1, 1.0, 123, i.len());
                 let tod_noise = noise.get_noise_tod();
-                for (n, (k, l)) in i.into_iter().zip(j.iter()).enumerate(){
+                for (n, (mut k, l)) in i.iter().zip(j.iter()).enumerate(){
                     let t_sky = t_map[match l.to_usize() {Some(p) => p, None=>0}];
                     let r = tod_noise[n];
-                    *k = 0.56*(*k) + r + t_sky;
+                    let atm = k;
+                    k = &(0.56*(atm) + r + t_sky);
                 }
             }
             
@@ -308,44 +312,41 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
     // 2..6 = 0 1 2 3 4
     //        9 8 7 6 5  
     for f in (freq.len()/2)..(freq.len()) {  
-
-        let n_p = f32::powf(_sigma * ( 1.0 + _f_k/(freq[f]+0.00005) ), _alpha.clone());
-
+        let n_p = f32::powf(
+            _sigma * ( 1.0 + _f_k/(freq[f])), _alpha.clone()) * 
+                       8E-12 * f32::exp((-1.0*freq[f]*freq[f])/(2.0*0.0002));
         noise_prior.push(n_p); 
     }
     
     for f in 0..(freq.len()/2) {
-
-        let n_p: f32 = f32::powf( _sigma * (1.0 + _f_k/(freq[tod.len() - 1 - f]+0.00005)), _alpha.clone());
-
+        let n_p: f32 = f32::powf( 
+            _sigma * (1.0 + _f_k/(freq[tod.len() - 1 - f])), _alpha.clone()) * 
+                       8E-12 * f32::exp((-1.0*freq[tod.len() - 1 - f]*freq[tod.len() - 1 - f])/(2.0*_f_k*_f_k) );
         noise_prior.push(n_p);
     }
-
         /* DEBUG    
     *********************************************************************/
     // let mut fg = Figure::new();
-
     // fg.axes2d().
-
     //     points(freq.clone(), b.to_vec(), &[Caption("FFT"), Color("red")]).
     //     lines(freq.clone(), noise_prior.to_vec(), &[Caption("Nois Prior"), Color("black")]);
-        
     // fg.show().unwrap();
     /*********************************************************************
     */
 
     // Denoise
     let mut tod_corrected: Vec<f32> = Vec::new();
-    for i in b.iter().zip(noise_prior.iter()){
-        tod_corrected.push(i.0/i.1);
+    for i in 0..b.len(){
+        tod_corrected.push(b[i]/noise_prior[i]);
     }
 
     /* DEBUG    
     *********************************************************************/
     // let mut fg = Figure::new();
     // fg.axes2d().
-    //     points(freq.clone(), tod_corrected.to_vec(), &[Caption("asdasd")]).
-    //     points(freq.clone(), b.to_vec(), &[Caption("asd")]);
+    //     lines(0..noise_prior.len(), noise_prior, &[Caption("Noise Prior"), Color("black")]).
+    //     lines(0..b.len(), b.to_vec(), &[Caption("FFT TOD RAW"), Color("red")]);
+    //     //points(0..tod_corrected.len(), tod_corrected.to_vec(), &[Caption("FFT TOD - RAW"), Color("red")]);
     // fg.show().unwrap();
     /*********************************************************************
     */
@@ -360,11 +361,11 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
     r2r.r2r(&mut c, &mut d).unwrap();
     
     /* DEBUG    
-    ********************************************************************
+    *********************************************************************/
     // let mut fg = Figure::new();
     // fg.axes2d().points(0..d.len(), d.to_vec(), &[Caption("asdasd")]);
     // fg.show().unwrap();
-    ********************************************************************
+    /*********************************************************************
     */
     
     let mut tod_corrected: Vec<f32> = Vec::new();
@@ -395,7 +396,7 @@ impl Obs {
 
         for (i, j) in tods.iter().zip(pixs.iter()) {
 
-            let tod = denoise(i.clone(), 11.0/3.0, 0.0005, 1.0, 20.0);
+            let tod = denoise(i.clone(), 8.0/3.0, 7.0, 1.0, 20.0);
             // let mut fg = Figure::new();
             // fg.axes2d().
             //     points(0..i.len(), i, &[Caption("RAW"), Color("red")]).
@@ -423,7 +424,7 @@ impl Obs {
                         
                     }
 
-                    let tmp_denoise = denoise(_tmp, 11.0/3.0, 0.0015, 3.0, 20.0);
+                    let tmp_denoise = denoise(_tmp, 8.0/3.0, 7.0, 1.0, 20.0);
                     let (map, _) = bin_map(tmp_denoise, i_det, 128);
 
                     for i in 0..NUM_PIX{
