@@ -5,6 +5,7 @@ mod iteratorscustom;
 use crate::Obs;
 //use core::num;
 use std::fs::read_dir;
+use std::ops::Index;
 use std::path::{Path, PathBuf};
 use colored::*;
 use npy::NpyData;
@@ -13,6 +14,7 @@ use std::io;
 use ndarray::Array1;
 use ndarray_npy::NpzReader;
 use std::fs::File;
+use gnuplot::*;
 
 pub struct DirStruct {
     _outer_directory: Vec<PathBuf>,
@@ -122,22 +124,21 @@ impl DirStruct {
                                                         .matches(s)
                                                     );
 
-        for i in files { // i -> file della stessa mc_iteration
+        for i in files { // i -> same Monte Carlo iteration
 
             // MEMORY ALLOCATION!!!!!!!
             let mut _tod: Vec<f32> = Vec::new();
             if compressed == true {
                 let mut a = NpzReader::new(File::open(i).unwrap()).unwrap();
                 let c: Array1<f32> = a.by_name("arr_0.npy").unwrap();
-                _tod = c.to_vec();
-
-
+                _tod = c.to_vec()
             } else {
                 // MEMORY ALLOCATION!!!!!!!!!!
                 let mut buf_tod = Vec::new();
                 std::fs::File::open(i).unwrap().read_to_end(&mut buf_tod).unwrap();
                 _tod = NpyData::from_bytes(&buf_tod).unwrap().to_vec(); // ok
             }
+     
 
             /*************/ // Extract the detector name
             let det_i = match i.split("/").last() {Some(det) => det, None=>""};
@@ -171,6 +172,11 @@ impl DirStruct {
                 _pix_point = NpyData::from_bytes(&mut buf_pix).unwrap().to_vec();
             }
 
+            // VUOTOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+            // let mut fg = Figure::new();
+            // fg.axes2d().points(0.._tod.len(), _tod.clone(), &[Caption("bho") ]);
+            // fg.show().unwrap();
+
             pix_vec.push(_pix_point);
             tod_vec.push(_tod);
             det_vec.push(String::from(det_i));
@@ -193,6 +199,7 @@ impl DirStruct {
             tod_vec.as_mut(),
         );
         println!("{}", "OBS BUILT".bright_green());
+
         obs
     }
 }
