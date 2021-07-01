@@ -5,8 +5,8 @@ use itertools_num::linspace;
 use std::path::Path;
 
 
-pub fn plot_vector(y_values: Vec<f64>, dataname: &'static str, filename: &'static str, log: bool) {
-    let x_values = linspace::<f64>(0.0, y_values.len() as f64, y_values.len()).collect::<Vec<_>>();
+pub fn plot_vector(y_values: Vec<f32>, dataname: &'static str, filename: &'static str, log: bool) {
+    let x_values = linspace::<f32>(0.0, y_values.len() as f32, y_values.len()).collect::<Vec<_>>();
 
     // Make a new Figure to plot our vector:
     let mut f = Figure::new();
@@ -21,11 +21,11 @@ pub fn plot_vector(y_values: Vec<f64>, dataname: &'static str, filename: &'stati
     if log {
         f.configure(Axis::BottomX, |a| a
             .set(Scale::Logarithmic)
-            .set(Range::Limits(20.0, 44100.0/2.0))
+            //.set(Range::Limits(20.0, 44100.0/2.0))
         );
         f.configure(Axis::LeftY, |a| a
             .set(Scale::Logarithmic)
-            .set(Range::Limits(1.0, 100000.0))
+            //.set(Range::Limits(1000.0, 100000000.0))
         );
     }
 
@@ -47,6 +47,7 @@ pub fn plot_vector(y_values: Vec<f64>, dataname: &'static str, filename: &'stati
                 .set(LineType::Solid)
         }
     );
+    
 
     // Spit out the plot to a .svg file:
     f.draw()

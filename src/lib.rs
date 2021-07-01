@@ -24,6 +24,8 @@ use colored::Colorize;
 
 use num::ToPrimitive;
 
+use num::complex::Complex32;
+use num::traits::sign;
 //use rand_distr::{Distribution, Normal};
 use sky::Sky;
 use noisemodel::NoiseModel;
@@ -31,7 +33,7 @@ use fftw::array::AlignedVec;
 use fftw::plan::*;
 use fftw::types::*;
 
-use rustfft::FftPlanner;
+use rustfft::{Fft, FftPlanner};
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
 
@@ -75,11 +77,10 @@ impl Obs {
             for (i, j) in tod.into_iter().zip(pix.iter()){
                 let noise = NoiseModel::new(50.0, 7e9, 1.0/20.0, 0.1, 1.0, 123, i.len());
                 let tod_noise = noise.get_noise_tod();
-                for (n, (mut k, l)) in i.iter().zip(j.iter()).enumerate(){
+                for (n, (k, l)) in i.into_iter().zip(j.iter()).enumerate(){
                     let t_sky = t_map[match l.to_usize() {Some(p) => p, None=>0}];
                     let r = tod_noise[n];
-                    let atm = k;
-                    k = &(0.56*(atm) + r + t_sky);
+                    *k = 0.56 * (*k) + r + t_sky;
                 }
             }
             
@@ -261,8 +262,8 @@ impl Obs {
 pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> Vec<f32> {
 
     let samples = match tod.len().to_f32(){Some(p) => p, None => 0.0};
-    let f_min = 1.0/(fs*samples);
-    let f_max = 0.5 * (1.0 / fs );
+    let f_min = fs / samples;   
+    let f_max = 0.5 * ( fs ); 
 
     let mut freq: Vec<f32> = Vec::new();
 
@@ -278,7 +279,6 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
         match (f32::floor(samples/2.0)).to_u32() {Some(p) => p, None => 0}
     );
 
-   
     for i in _f1 {
         freq.push(i);
     }
@@ -286,18 +286,38 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
         freq.push(i);
     }
 
-    let mut r2r: R2RPlan32 = R2RPlan::aligned(&[tod.len()], R2RKind::FFTW_DHT, Flag::MEASURE).unwrap();
-    let mut a = AlignedVec::new(tod.len());
-    let mut b = AlignedVec::new(tod.len());
-
-    let _k0 = 2.0 * PI / tod.len() as f64;
-
-    for i in 0..tod.len() {
-        a[i] = tod[i];
+    let mut input: Vec<Complex<f32>> = Vec::new();
+    for i in tod.iter() {
+        input.push(Complex32::new(match i.to_f32(){Some(p) => p, None=>0.0}, 0.0));
     }
 
-    // Perform the fft
-    r2r.r2r(&mut a, &mut b).unwrap();
+    //plot_vector(input.iter().map(|f| f.norm()).collect(), "TOD rustfft", "tod_fft.svg", false);
+
+    let mut planner = FftPlanner::new();
+    let fft = planner.plan_fft(tod.len(), rustfft::FftDirection::Forward);
+    fft.process(&mut input);
+    
+    // let mut pow_spec: Vec<f32> = Vec::new();
+    // for i in 0..tod.len()/2 {
+    //     pow_spec.push(output[i].norm());
+    // }
+
+    // plot_vector(input.iter().map(|f| f.norm()).collect(), "TOD rustfft", "tod_fft.svg", true);
+
+
+    // let mut r2r: R2RPlan32 = R2RPlan::aligned(&[tod.len()], R2RKind::FFTW_DHT, Flag::MEASURE).unwrap();
+    // let mut a = AlignedVec::new(tod.len());
+    // let mut b = AlignedVec::new(tod.len());
+
+    // let _k0 = 2.0 * PI / tod.len() as f64;
+
+    // for i in 0..tod.len() {
+    //     a[i] = tod[i];
+    // }
+
+    // // Perform the fft
+    // r2r.r2r(&mut a, &mut b).unwrap();
+    // plot_vector(b.to_vec().iter().map(|f| f32::abs(f.clone())).collect(), "TOD FFTW", "tod_fftw.svg", true);
 
 
     // for i in 0..10 {
@@ -313,32 +333,36 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
     //        9 8 7 6 5  
     for f in (freq.len()/2)..(freq.len()) {  
         let n_p = f32::powf(
-            _sigma * ( 1.0 + _f_k/(freq[f])), _alpha.clone()) * 
-                       8E-12 * f32::exp((-1.0*freq[f]*freq[f])/(2.0*0.0002));
+            _sigma * ( 1.0 + _f_k/(freq[f])), _alpha.clone()); //*
+                        f32::exp((-1.0*freq[f]*freq[f])/(2.0*0.0002));
         noise_prior.push(n_p); 
     }
     
     for f in 0..(freq.len()/2) {
         let n_p: f32 = f32::powf( 
-            _sigma * (1.0 + _f_k/(freq[tod.len() - 1 - f])), _alpha.clone()) * 
-                       8E-12 * f32::exp((-1.0*freq[tod.len() - 1 - f]*freq[tod.len() - 1 - f])/(2.0*_f_k*_f_k) );
+            _sigma * (1.0 + _f_k/(freq[tod.len() - 1 - f])), _alpha.clone()); //* 
+                       f32::exp((-1.0*freq[tod.len() - 1 - f]*freq[tod.len() - 1 - f])/(2.0*0.0002 ));
         noise_prior.push(n_p);
     }
+    plot_vector(noise_prior.clone(), "Noise Prior", "noise_prior.svg", true);
+    plot_vector(input.iter().map(|f| f.norm()).collect(), "tod", "fft_tod.svg", true);
         /* DEBUG    
     *********************************************************************/
-    // let mut fg = Figure::new();
+    let mut fg = Figure::new();
     // fg.axes2d().
     //     points(freq.clone(), b.to_vec(), &[Caption("FFT"), Color("red")]).
     //     lines(freq.clone(), noise_prior.to_vec(), &[Caption("Nois Prior"), Color("black")]);
-    // fg.show().unwrap();
+     fg.show().unwrap();
     /*********************************************************************
     */
 
     // Denoise
-    let mut tod_corrected: Vec<f32> = Vec::new();
-    for i in 0..b.len(){
-        tod_corrected.push(b[i]/noise_prior[i]);
+    let mut tod_corrected: Vec<Complex32> = Vec::new();
+    for i in 0..input.len(){
+        tod_corrected.push(Complex32::new(input[i].re/noise_prior[i], 0.0));
     }
+
+    // plot_vector(tod_corrected.iter().map(|f| f.abs()).collect(), "TOD fft filtered", "filter.svg", true);
 
     /* DEBUG    
     *********************************************************************/
@@ -351,14 +375,18 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
     /*********************************************************************
     */
 
-    let mut r2r: R2RPlan32 = R2RPlan::aligned(&[tod.len()], R2RKind::FFTW_DHT,Flag::MEASURE).unwrap();
-    let mut c = AlignedVec::new(tod.len());
-    let mut d    = AlignedVec::new(tod.len());
+    // let mut r2r: R2RPlan32 = R2RPlan::aligned(&[tod.len()], R2RKind::FFTW_DHT,Flag::MEASURE).unwrap();
+    // let mut c = AlignedVec::new(tod.len());
+    // let mut d    = AlignedVec::new(tod.len());
 
-    for i in 0..(tod.len()-1) {
-        c[i] = tod_corrected[i];
-    }
-    r2r.r2r(&mut c, &mut d).unwrap();
+    // for i in 0..(tod.len()-1) {
+    //     c[i] = tod_corrected[i];
+    // }
+    // r2r.r2r(&mut c, &mut d).unwrap();
+
+    fft.process(&mut tod_corrected);
+
+    // plot_vector(input.iter().map(|f| f.re).collect(), "Tod_Filtered", "Tod_Filtered.svg", false);
     
     /* DEBUG    
     *********************************************************************/
@@ -368,10 +396,12 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, fs: f32) -> V
     /*********************************************************************
     */
     
-    let mut tod_corrected: Vec<f32> = Vec::new();
-    for i in d.to_vec() {
-        tod_corrected.push(i);
-    }
+    // let mut tod_corrected: Vec<f32> = Vec::new();
+    // for i in d.to_vec() {
+    //     tod_corrected.push(i);
+    // }
+
+    let tod_corrected = input.iter().map(|f| f.re).collect();
 
     tod_corrected
     
