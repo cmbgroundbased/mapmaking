@@ -24,6 +24,7 @@ use std::ops::Index;
 use colored::Colorize;
 
 use iteratorscustom::FloatIterator;
+use ndarray::iter::Windows;
 use num::ToPrimitive;
 
 use num::complex::Complex32;
@@ -43,6 +44,7 @@ use plot_suite::plot_vector;
 use gnuplot::*;
 
 use crate::conjugategradient2::conjgrad2;
+use crate::conjugategradient::conjgrad;
 
 
 #[derive(Debug)]
@@ -280,7 +282,13 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, _fs: f32) -> 
     for _i in 0..tod.len() {
         input.push(Complex::<f32>::new(tod[_i], 0.0));
     }
-
+    let k0 = 3.141592 / (input.len() as f32);
+    
+    for i in 0..input.len(){
+        input[i].re *= f32::sin(k0 * (match i.to_f32() {Some(p)=>p, None=>0.0}) );
+        
+    }
+   
     let mut planner = FftPlanner::new();
     let fft = planner.plan_fft(tod.len(), rustfft::FftDirection::Forward);
     fft.process(&mut input);
@@ -300,12 +308,21 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, _fs: f32) -> 
         tod_corrected.push(Complex32::new(input[i].re/noise_p[i], 0.0));
     }
 
+    for i in 0..input.len(){
+        tod_corrected[i].re *= f32::cos(k0 * (match i.to_f32() {Some(p)=>p, None=>0.0}) );
+    }
+
     let mut planner = FftPlanner::new();
     let ifft = planner.plan_fft(tod.len(), rustfft::FftDirection::Inverse);
 
     ifft.process(&mut tod_corrected);
 
     let tod_real: Vec<f32> = tod_corrected.iter().map(|f| f.re).collect();
+
+    // let mut fg = Figure::new();
+    // fg.axes2d().lines(0..tod_real.len(), tod_real.clone(), &[Caption("Tod denoised"), PointSymbol('.')]);
+    // fg.show().unwrap();
+
 
     tod_real
 

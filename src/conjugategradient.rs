@@ -6,11 +6,7 @@ pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>, b: Vec<f32>
 
 
     let z = pr(r.clone()); //*************** */
-    let mut _rz: f32 = 0.0;
-
-    for i in 0..n {
-        _rz += r[i]*z[i];
-    }
+    let mut _rz: f32 = r.clone().iter().zip(z.iter()).map(|c| c.0 * c.1).sum();;
 
     //let rz: f32 = r.clone().iter().zip(z.iter()).map(|c| c.0 * c.1).sum();
 
@@ -18,14 +14,15 @@ pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>, b: Vec<f32>
     let p: Vec<f32> = z;
     let _n_iter: usize = 0;
 
- 
+    let mut pap: f32 = 0.0;
     for _i in 0..maxiter {
         let ap: Vec<f32> = a(p.clone(), pixes.clone());
-        let pap: f32 = p.clone().iter().zip(ap.iter()).map(|c| c.0 * c.1).sum();
+        pap = p.clone().iter().zip(ap.iter()).map(|c| c.0 * c.1).sum::<f32>();
         let alpha = _rz / pap;
 
 
         println!("Alpha: {}", alpha);
+        println!("PAP  : {}", pap);
 
         for i in 0..n {
             x[i] += alpha * p[i];
@@ -40,6 +37,7 @@ pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>, b: Vec<f32>
         /* DEBUG
         *******************************/
         println!("CG error: {}", err);
+        println!("************");
         /******************************
         */
         
