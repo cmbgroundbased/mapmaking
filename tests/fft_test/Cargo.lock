@@ -80,6 +80,7 @@ name = "fft_test"
 version = "0.1.0"
 dependencies = [
  "gnuplot",
+ "misc",
  "ndarray",
  "ndarray-npy",
  "npy",
@@ -167,6 +168,12 @@ dependencies = [
  "adler",
  "autocfg",
 ]
+
+[[package]]
+name = "misc"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ad795245aedfe18e488334eaf8c30c3f4e463915990d8c37f8d51260ed3d9a3"
 
 [[package]]
 name = "ndarray"

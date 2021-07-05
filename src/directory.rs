@@ -98,7 +98,7 @@ impl DirStruct {
 }
 // 43000001.0
 impl DirStruct {
-    pub fn create_observations(&self, id_mc_ref: &str) -> Obs {
+    pub fn create_observations(&self, id_mc_ref: &str, sky_t: Vec<f32>) -> Obs {
 
         let compressed: bool = true;
         //let mut observations: Vec<Obs> = Vec::new();
@@ -197,6 +197,7 @@ impl DirStruct {
             0.01,
             pix_vec,
             tod_vec.as_mut(),
+            sky_t,
         );
         println!("{}", "OBS BUILT".bright_green());
 

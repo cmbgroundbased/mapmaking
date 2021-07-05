@@ -17,34 +17,35 @@ pub mod conjugategradient;
 pub mod conjugategradient2;
 pub mod plot_suite;
 
-use std::f64::consts::PI;
+// use std::f64::consts::PI;
+// use rustfft::num_traits::Zero;
 use std::fs::File;
 use std::io::Write;
-use std::ops::Index;
+// use std::ops::Index;
 use colored::Colorize;
 
 use iteratorscustom::FloatIterator;
-use ndarray::iter::Windows;
+// use ndarray::iter::Windows;
 use num::ToPrimitive;
 
 use num::complex::Complex32;
-use num::traits::sign;
+// use num::traits::sign;
 //use rand_distr::{Distribution, Normal};
 use sky::Sky;
 use noisemodel::NoiseModel;
-use fftw::array::AlignedVec;
-use fftw::plan::*;
-use fftw::types::*;
+// use fftw::array::AlignedVec;
+// use fftw::plan::*;
+// use fftw::types::*;
 
-use rustfft::{Fft, FftPlanner};
+use rustfft::FftPlanner;
 use rustfft::num_complex::Complex;
-use rustfft::num_traits::Zero;
+// use rustfft::num_traits::Zero;
 
-use plot_suite::plot_vector;
-use gnuplot::*;
+//use plot_suite::plot_vector;
+//use gnuplot::*;
 
 use crate::conjugategradient2::conjgrad2;
-use crate::conjugategradient::conjgrad;
+//use crate::conjugategradient::conjgrad;
 
 
 #[derive(Debug)]
@@ -57,6 +58,7 @@ pub struct Obs {
     f_knee: f32,
     pix: Vec<Vec<i32>>,
     tod: Vec<Vec<f32>>,
+    sky_t: Vec<f32>,
 }
 
 // ```
@@ -72,20 +74,18 @@ impl Obs {
         alpha: f32, 
         f_knee: f32, 
         pix: Vec<Vec<i32>>, 
-        tod: & mut Vec<Vec<f32>>) -> Self 
+        tod: & mut Vec<Vec<f32>>,
+        sky: Vec<f32>) -> Self 
         {
 
-            let my_sky = Sky::new();
-            let t_map = my_sky.get_t_sky();
-
-
             for (i, j) in tod.into_iter().zip(pix.iter()){
-                let noise = NoiseModel::new(50.0, 7e9, 1.0/20.0, 0.1, 1.0, 123, i.len());
-                let tod_noise = noise.get_noise_tod();
+                //let noise = NoiseModel::new(50.0, 7e9, 1.0/20.0, 0.1, 1.0, 123, i.len());
+                //let tod_noise = noise.get_noise_tod();
                 for (n, (k, l)) in i.into_iter().zip(j.iter()).enumerate(){
-                    let t_sky = t_map[match l.to_usize() {Some(p) => p, None=>0}];
-                    let r = tod_noise[n];
-                    *k = 0.56 * (*k) + r + t_sky; 
+                    let t_sky = sky[match l.to_usize() {Some(p) => p, None=>0}];
+                    //let r = tod_noise[n];
+                    // *k = 0.56 * (*k) + r + t_sky; 
+                    *k = 0.56 * (*k) + t_sky; 
                 }
             }
             
@@ -98,6 +98,7 @@ impl Obs {
                 f_knee,
                 pix,
                 tod: tod.clone(),
+                sky_t: sky,
             }
     }
 }
@@ -276,21 +277,60 @@ pub fn fn_noise_prior(f: f32, alpha: f32, f_k: f32, sigma: f32) -> f32 {
     _np
 } 
 
-pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, _fs: f32) -> Vec<f32> {
+/// Design Kaiser window from parameters.
+///
+/// The length depends on the parameters given, and it's always odd.
+// fn kaiser(atten: f32, freq: Vec<f32>) -> Vec<f32> {
+//     use crate::misc::bessel_i0 as bessel;
 
-    let mut input: Vec<Complex<f32>> = Vec::new();
-    for _i in 0..tod.len() {
-        input.push(Complex::<f32>::new(tod[_i], 0.0));
-    }
-    let k0 = 3.141592 / (input.len() as f32);
+//     let beta: f32;
+//     if atten > 50. {
+//         beta = 0.1102 * (atten - 8.7);
+//     } else if atten < 21. {
+//         beta = 0.;
+//     } else {
+//         beta = 0.5842 * (atten - 21.).powf(0.4) + 0.07886 * (atten - 21.);
+//     }
+
+//     // Filter length, we want an odd length
+//     let mut length: i32 = ((atten - 8.) / (2.285 * freq.ceil() as i32 + 1;
+//     if length % 2 == 0 {
+//         length += 1;
+//     }
+
+//     let mut window: Signal = Vec::with_capacity(length as usize);
+
+//     for n in -(length - 1) / 2..=(length - 1) / 2 {
+//         let n = n as f32;
+//         let m = length as f32;
+//         window.push(bessel(beta * (1. - (n / (m / 2.)).powi(2)).sqrt()) / bessel(beta))
+//     }
+
+//     debug!(
+//         "Kaiser window design finished, beta: {}, length: {}",
+//         beta, length
+//     );
+
+//     window
+// }
+
+
+
+
+pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, _fs: f32) -> Vec<f32> {
     
-    for i in 0..input.len(){
-        input[i].re *= f32::sin(k0 * (match i.to_f32() {Some(p)=>p, None=>0.0}) );
-        
-    }
+    let k0 = 3.141592 / ( tod.len() as f32);
+
+    let sin_window: Vec<f32> = (0..tod.len()).map(|i| f32::sin(k0 * (i as f32))).collect();
+    let cos_window: Vec<f32> = (0..tod.len()).map(|i| f32::cos(k0 * (i as f32))).collect();
+
+    let mut input: Vec<Complex<f32>> = tod.iter().zip(sin_window.iter()).map(|x| Complex32::new(
+        *x.0 *x.1, 
+        0.0)).
+        collect();
    
     let mut planner = FftPlanner::new();
-    let fft = planner.plan_fft(tod.len(), rustfft::FftDirection::Forward);
+    let fft = planner.plan_fft_forward(tod.len());
     fft.process(&mut input);
 
     let mut noise_p: Vec<f32> = Vec::new();
@@ -303,29 +343,16 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, _fs: f32) -> 
     }
  
     // Denoise
-    let mut tod_corrected: Vec<Complex32> = Vec::new();
-    for i in 0..input.len(){
-        tod_corrected.push(Complex32::new(input[i].re/noise_p[i], 0.0));
-    }
-
-    for i in 0..input.len(){
-        tod_corrected[i].re *= f32::cos(k0 * (match i.to_f32() {Some(p)=>p, None=>0.0}) );
-    }
+    let mut tod_corrected: Vec<Complex32> = input.iter().zip(noise_p.iter()).zip(cos_window.iter()).map(|((a, b), c)| Complex32::new( (a.re / b) * c, 0.0)).collect();
 
     let mut planner = FftPlanner::new();
-    let ifft = planner.plan_fft(tod.len(), rustfft::FftDirection::Inverse);
+    let ifft = planner.plan_fft_inverse(tod.len());
 
     ifft.process(&mut tod_corrected);
 
     let tod_real: Vec<f32> = tod_corrected.iter().map(|f| f.re).collect();
 
-    // let mut fg = Figure::new();
-    // fg.axes2d().lines(0..tod_real.len(), tod_real.clone(), &[Caption("Tod denoised"), PointSymbol('.')]);
-    // fg.show().unwrap();
-
-
     tod_real
-
 }
 
 impl Obs {
@@ -339,7 +366,7 @@ impl Obs {
         let tods = self.get_tod();
         let pixs = self.get_pix();
         let mut b: Vec<f32> = Vec::new();
-        for i in 0..NUM_PIX {
+        for _i in 0..NUM_PIX {
             b.push(0.0);
         }
 
@@ -449,8 +476,8 @@ impl Obs {
         let mut b: Vec<f32> = Vec::new();
         let mut x: Vec<f32> = Vec::new();
 
-        let b_l = baselines_length*20;
-        let b_l_f32 = match (baselines_length*20).to_f32(){Some(p) => p, None => 0.0};
+        let b_l = baselines_length*20; // In seconds
+        let b_l_f32 = match (baselines_length*20).to_f32(){Some(p) => p, None => 0.0}; 
 
         for _i in 0..NUM_PIX {
             b.push(0.0);
@@ -467,7 +494,7 @@ impl Obs {
                 let mut new_c: Vec<f32> = c.iter().map(|i| i-avg).collect();
                 new_tod.append(&mut new_c);
             } 
-            let (map, hit) = bin_map(new_tod.clone(), &j.clone(), nside);
+            let (map, _hit) = bin_map(new_tod.clone(), &j.clone(), nside);
             //let map: Vec<f32> = map.iter().zip(hit.iter()).map(|p| *p.0 / match (*p.1).to_f32(){Some(p) => p, None=>0.0}).collect();
             for i in 0..NUM_PIX {
                 b[i] += map[i];

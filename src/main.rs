@@ -9,7 +9,7 @@ use clap::{App, Arg};
 mod directory;
 use directory::DirStruct;
 use std::path::Path;
-use mapmaking::Obs;
+use mapmaking::{Obs, sky};
 
 use std::thread::sleep;
 // use gnuplot::{Figure, Caption, Color};
@@ -52,11 +52,13 @@ fn main() {
 
 pub fn split_mc(p: String, id: &str) -> &str {
 	let directory_tree = DirStruct::new(Path::new(&*p), String::from("1")).unwrap();
-	let _my_obs = directory_tree.create_observations(id);
+	let my_sky = sky::Sky::new();
+	let t_sky = my_sky.get_t_sky();
+	let _my_obs = directory_tree.create_observations(id, t_sky);
   
 	// _my_obs.binning();
 	// _my_obs.dummy_denoise();
-	// _my_obs.gls_denoise(1E-5, 20, 128);
-	_my_obs.atm_mitigation(1, 10, 1E-10, 128);
+	_my_obs.gls_denoise(1E-5, 12, 128);
+	// _my_obs.atm_mitigation(1, 10, 1E-10, 128);
 	id
 }
