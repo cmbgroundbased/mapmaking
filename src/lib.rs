@@ -355,7 +355,7 @@ impl Obs {
 
     pub fn gls_denoise(&self, tol: f32, maxiter: usize, nside: usize){
         
-        println!("{}", "gls_denoise process in execution...".blue());
+        println!("{}", "Execution of the gls_denoise".bright_blue().bold());
 
         const NUM_PIX: usize = 12*128*128;
 
@@ -372,11 +372,10 @@ impl Obs {
                 b[i] += map[i];
             }
         }
-        for i in b.clone(){
-            println!("{:?}", i);
-        }
+        // for i in b.clone(){
+        //     println!("{:?}", i);
+        // }
         
-
         fn a() -> Box<dyn Fn(&Vec<f32>, &Vec<Vec<i32>>) -> Vec<f32>> {
             Box::new(|_x: &Vec<f32>, puntamenti: &Vec<Vec<i32>>|  {
                 let mut res: Vec<f32> = vec![0.0; NUM_PIX];
