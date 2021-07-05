@@ -5,16 +5,13 @@ mod iteratorscustom;
 use crate::Obs;
 //use core::num;
 use std::fs::read_dir;
-use std::ops::Index;
 use std::path::{Path, PathBuf};
 use colored::*;
-use npy::NpyData;
-use std::io::Read;
 use std::io;
 use ndarray::Array1;
 use ndarray_npy::NpzReader;
 use std::fs::File;
-use gnuplot::*;
+// use gnuplot::*;
 
 pub struct DirStruct {
     _outer_directory: Vec<PathBuf>,
@@ -97,11 +94,65 @@ impl DirStruct {
     } // end of the new function
 }
 // 43000001.0
+
+// impl DirStruct {
+//     pub fn create_obs(&self, id_mc: &str, sky_t: Vec<f32>) {
+//         let mut tod_vec: Vec<Vec<f32>> = Vec::new();
+//         let mut pix_vec: Vec<Vec<i32>> = Vec::new();
+
+//         let mc_id =   match id_mc.split("43").skip(1).next() {
+//             Some(c) => match c.split(".").next(){
+//                 Some(m_o) => m_o,
+//                 None => "Primo Err.",
+//             },
+//             None => "Secondo Err.",
+//         };
+//         let mc_id_u8 = String::from(mc_id).parse::<u8>().unwrap();
+
+//         let total_file = self.get_mc_path();
+//         let total_file_string= total_file.iter()
+//                                                     .map(|f| match f.to_str() {Some(p) => p, None=> ""});
+        
+//         let files_tod = total_file_string
+//                                                     .filter(
+//                                                         |&s| wildmatch::WildMatch::new(format!("*{}*",id_mc).as_str())
+//                                                         .matches(s)
+//                                                     );
+
+//         let det_names = 
+
+        
+//         for i in 0..files_pix.len() {
+//             println!("{}", files_pix[i]);
+//             // let mut a = NpzReader::new(File::open(i).unwrap()).unwrap();
+//             // let c: Array1<f32> = a.by_name("arr_0.npy").unwrap();
+//             // tod_vec.push(c.to_vec());
+//             /********************************/
+//         }
+            
+
+//         //     _pix_file_name = format!("{}{}/{}_pix.npz", self.entry_point, third_part, det_i);
+
+//         //     let mut _pix_point: Vec<i32> =Vec::new();
+//         //     let pix_path = Path::new(_pix_file_name.as_str());
+//         //     let mut a = NpzReader::new(File::open(pix_path).unwrap()).unwrap();
+//         //     let c: Array1<i32> = a.by_name("arr_0.npy").unwrap();
+//         //     _pix_point = c.to_vec();
+
+
+
+//         // }
+
+
+
+//     }
+
+//    // }
+// }
+
 impl DirStruct {
     pub fn create_observations(&self, id_mc_ref: &str, sky_t: Vec<f32>) -> Obs {
-
-        let compressed: bool = true;
-        //let mut observations: Vec<Obs> = Vec::new();
+        
         let mut tod_vec: Vec<Vec<f32>> = Vec::new();
         let mut pix_vec: Vec<Vec<i32>> = Vec::new();
         let mut det_vec: Vec<String>   = Vec::new();
@@ -126,63 +177,42 @@ impl DirStruct {
 
         for i in files { // i -> same Monte Carlo iteration
 
-            // MEMORY ALLOCATION!!!!!!!
-            let mut _tod: Vec<f32> = Vec::new();
-            if compressed == true {
-                let mut a = NpzReader::new(File::open(i).unwrap()).unwrap();
-                let c: Array1<f32> = a.by_name("arr_0.npy").unwrap();
-                _tod = c.to_vec()
-            } else {
-                // MEMORY ALLOCATION!!!!!!!!!!
-                let mut buf_tod = Vec::new();
-                std::fs::File::open(i).unwrap().read_to_end(&mut buf_tod).unwrap();
-                _tod = NpyData::from_bytes(&buf_tod).unwrap().to_vec(); // ok
-            }
+            let mut a = NpzReader::new(File::open(i).unwrap()).unwrap();
+            let c: Array1<f32> = a.by_name("arr_0.npy").unwrap();
+            tod_vec.push(c.to_vec());
+            /************************************************************************************ */
      
 
             /*************/ // Extract the detector name
-            let det_i = match i.split("/").last() {Some(det) => det, None=>""};
-            let det_i = match det_i.split(".").next() {Some(det) => det, None=>""};
+            let det_i = match 
+                                match i.split("/")
+                                      .last() {
+                                          Some(det) => det, 
+                                          None=>""
+                                        }.split(".").next(){
+                                            Some(det) => det, 
+                                            None=>""
+                                        };
 
-
+            det_vec.push(String::from(det_i));
             /**************/ // det_i is the name of the detector
             // Load pixel stream
 
-            let second_part = match i.split(self.entry_point.as_str()).skip(1).next() {Some(v) => v, None => "Err."}; 
-            let third_part = match second_part.split("/").next() {Some(v) => v, None => "Err."}; // giorno 2022....
+            let part1 = match i.split(self.entry_point.as_str()).skip(1).next() {Some(v) => v, None => "Err."}; 
+            let part2 = match part1.split("/").next() {Some(v) => v, None => "Err."}; // giorno 2022....
 
-            let mut _pix_file_name = String::from("");
-
-            if compressed == true {
-                _pix_file_name = format!("{}{}/{}_pix.npz", self.entry_point, third_part, det_i);
-            } else {
-                _pix_file_name = format!("{}{}/{}_pix.npy", self.entry_point, third_part, det_i);
-            }
+            let _pix_file_name = format!("{}{}/{}_pix.npz", self.entry_point, part2, det_i);
+            
             let mut _pix_point: Vec<i32> =Vec::new();
             let pix_path = Path::new(_pix_file_name.as_str());
-            if compressed == true {
-                // MEMORY ALLOCATION!!!!!!!
-                let mut a = NpzReader::new(File::open(pix_path).unwrap()).unwrap();
-                let c: Array1<i32> = a.by_name("arr_0.npy").unwrap();
-                _pix_point = c.to_vec();
-            } else {
-                // MEORY ALLOCATION!!!!!!!!
-                let mut buf_pix = Vec::new();
-                std::fs::File::open(pix_path).unwrap().read_to_end(&mut buf_pix).unwrap();
-                _pix_point = NpyData::from_bytes(&mut buf_pix).unwrap().to_vec();
-            }
 
-            // VUOTOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
-            // let mut fg = Figure::new();
-            // fg.axes2d().points(0.._tod.len(), _tod.clone(), &[Caption("bho") ]);
-            // fg.show().unwrap();
-
-            pix_vec.push(_pix_point);
-            tod_vec.push(_tod);
-            det_vec.push(String::from(det_i));
+            // MEMORY ALLOCATION!!!!!!!
+            let mut a = NpzReader::new(File::open(pix_path).unwrap()).unwrap();
+            let c: Array1<i32> = a.by_name("arr_0.npy").unwrap();
+            pix_vec.push(c.to_vec());
+            
 
             let pix_name_string = match pix_path.to_str() {Some(p)=> p, None=> ""};
-
             println!("TOD: {}, PIX: {}", i.bright_green(), pix_name_string.bright_green());
 
         } // end of the main loop scope

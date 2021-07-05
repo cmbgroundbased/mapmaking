@@ -36,7 +36,6 @@ fn main() {
                               "43000048.0", "43000049.0"];
 
 	let directory_path = program.value_of("tod_path").unwrap();
-
 	//let (tx, rx) = channel(); (possiamo far tornare cose al thread 0, in modo tale da tener traccia di quello che sta iniziando/finendo)
 
 	for _th in 0..NUM_MC_ITER {

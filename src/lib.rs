@@ -12,17 +12,24 @@ extern crate rustfft;
 pub mod directory;
 pub mod iteratorscustom;
 pub mod sky;
+pub mod misc;
 pub mod noisemodel;
 pub mod conjugategradient;
 pub mod conjugategradient2;
 pub mod plot_suite;
-
+use npy::NpyData;
+use std::io::Read;
+use std::io;
+use std::fs::File;
 // use std::f64::consts::PI;
 // use rustfft::num_traits::Zero;
-use std::fs::File;
 use std::io::Write;
+use std::vec;
 // use std::ops::Index;
 use colored::Colorize;
+
+
+
 
 use iteratorscustom::FloatIterator;
 // use ndarray::iter::Windows;
@@ -31,8 +38,6 @@ use num::ToPrimitive;
 use num::complex::Complex32;
 // use num::traits::sign;
 //use rand_distr::{Distribution, Normal};
-use sky::Sky;
-use noisemodel::NoiseModel;
 // use fftw::array::AlignedVec;
 // use fftw::plan::*;
 // use fftw::types::*;
@@ -81,9 +86,9 @@ impl Obs {
             for (i, j) in tod.into_iter().zip(pix.iter()){
                 //let noise = NoiseModel::new(50.0, 7e9, 1.0/20.0, 0.1, 1.0, 123, i.len());
                 //let tod_noise = noise.get_noise_tod();
-                for (n, (k, l)) in i.into_iter().zip(j.iter()).enumerate(){
+                for (_n, (k, l)) in i.into_iter().zip(j.iter()).enumerate(){
                     let t_sky = sky[match l.to_usize() {Some(p) => p, None=>0}];
-                    //let r = tod_noise[n];
+                    //let r = tod_noise[_n];
                     // *k = 0.56 * (*k) + r + t_sky; 
                     *k = 0.56 * (*k) + t_sky; 
                 }
@@ -235,9 +240,6 @@ impl Obs {
                 signal_map[pixel] += match tod_tmp.get(iterator) {Some(s) => s.clone(), None=>0.0};
                 iterator += 1;
             }
-            
-               
-            
         }
 
         let vec_signal = signal_map;
@@ -259,9 +261,7 @@ impl Obs {
         for (i,j) in hit.iter().zip(sig.iter()) {
             writeln!(f, "{}\t{}",i, j).unwrap();
         }
-
         println!("{}", "WRITE MAP COMPLETED".bright_green());
-
     }
 }
 
@@ -277,54 +277,50 @@ pub fn fn_noise_prior(f: f32, alpha: f32, f_k: f32, sigma: f32) -> f32 {
     _np
 } 
 
-/// Design Kaiser window from parameters.
-///
-/// The length depends on the parameters given, and it's always odd.
-// fn kaiser(atten: f32, freq: Vec<f32>) -> Vec<f32> {
-//     use crate::misc::bessel_i0 as bessel;
+// Design Kaiser window from parameters.
+//
+// The length depends on the parameters given, and it's always odd.
+fn kaiser(atten: f32, delta_w: f32) -> Vec<f32> {
+    use crate::misc::bessel_i0 as bessel;
 
-//     let beta: f32;
-//     if atten > 50. {
-//         beta = 0.1102 * (atten - 8.7);
-//     } else if atten < 21. {
-//         beta = 0.;
-//     } else {
-//         beta = 0.5842 * (atten - 21.).powf(0.4) + 0.07886 * (atten - 21.);
-//     }
+    let beta: f32;
+    if atten > 50. {
+        beta = 0.1102 * (atten - 8.7);
+    } else if atten < 21. {
+        beta = 0.;
+    } else {
+        beta = 0.5842 * (atten - 21.).powf(0.4) + 0.07886 * (atten - 21.);
+    }
 
-//     // Filter length, we want an odd length
-//     let mut length: i32 = ((atten - 8.) / (2.285 * freq.ceil() as i32 + 1;
-//     if length % 2 == 0 {
-//         length += 1;
-//     }
+    // Filter length, we want an odd length
+    let mut length: i32 = ((atten - 8.) / (2.285 * delta_w)).ceil() as i32 + 1;
+    if length % 2 == 0 {
+        length += 1;
+    }
 
-//     let mut window: Signal = Vec::with_capacity(length as usize);
+    let mut window: Vec<f32> = Vec::with_capacity(length as usize);
 
-//     for n in -(length - 1) / 2..=(length - 1) / 2 {
-//         let n = n as f32;
-//         let m = length as f32;
-//         window.push(bessel(beta * (1. - (n / (m / 2.)).powi(2)).sqrt()) / bessel(beta))
-//     }
+    for n in -(length - 1) / 2..=(length - 1) / 2 {
+        let n = n as f32;
+        let m = length as f32;
+        window.push(bessel(beta * (1. - (n / (m / 2.)).powi(2)).sqrt()) / bessel(beta))
+    }
 
-//     debug!(
-//         "Kaiser window design finished, beta: {}, length: {}",
-//         beta, length
-//     );
-
-//     window
-// }
-
-
+    window
+}
 
 
 pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, _fs: f32) -> Vec<f32> {
     
-    let k0 = 3.141592 / ( tod.len() as f32);
+    let k0 = std::f32::consts::PI / ( tod.len() as f32);
 
-    let sin_window: Vec<f32> = (0..tod.len()).map(|i| f32::sin(k0 * (i as f32))).collect();
+    // let sin_window: Vec<f32> = (0..tod.len()).map(|i| f32::sin(k0 * (i as f32))).collect();
     let cos_window: Vec<f32> = (0..tod.len()).map(|i| f32::cos(k0 * (i as f32))).collect();
+    let mut buf_kaiser = Vec::new();
+    std::fs::File::open("Sky_Maps/kaiser.npy").unwrap().read_to_end(&mut buf_kaiser).unwrap();
+    let kaiser_win: Vec<f32> = NpyData::from_bytes(&buf_kaiser).unwrap().to_vec();
 
-    let mut input: Vec<Complex<f32>> = tod.iter().zip(sin_window.iter()).map(|x| Complex32::new(
+    let mut input: Vec<Complex<f32>> = tod.iter().zip(kaiser_win.iter()).map(|x| Complex32::new(
         *x.0 *x.1, 
         0.0)).
         collect();
@@ -365,46 +361,48 @@ impl Obs {
 
         let tods = self.get_tod();
         let pixs = self.get_pix();
-        let mut b: Vec<f32> = Vec::new();
-        for _i in 0..NUM_PIX {
-            b.push(0.0);
-        }
-
-        let _x = b.clone();
+        let _x: Vec<f32> = vec![0.0; NUM_PIX];
+        let mut b: Vec<f32> = vec![0.0; NUM_PIX];
 
         for (i, j) in tods.iter().zip(pixs.iter()) {
 
-            let tod = denoise(i.clone(), 8.0/3.0, 7.0, 1.0, 20.0);
-            let (map, _) = bin_map(tod.clone(), &j.clone(), nside);
+            let tod_n = denoise(i.clone(), 8.0/3.0, 7.0, 1.0, 20.0);
+            let (map, _) = bin_map(tod_n.clone(), j, nside);
             for i in 0..NUM_PIX {
                 b[i] += map[i];
             }
         }
+        for i in b.clone(){
+            println!("{:?}", i);
+        }
+        
 
-        fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
-            Box::new(|_x: Vec<f32>, puntamenti:Vec<Vec<i32>>|  {
-                let mut res: Vec<f32> = Vec::new();
-                for _i in 0..NUM_PIX {
-                    res.push(0.0);
-                }
+        fn a() -> Box<dyn Fn(&Vec<f32>, &Vec<Vec<i32>>) -> Vec<f32>> {
+            Box::new(|_x: &Vec<f32>, puntamenti: &Vec<Vec<i32>>|  {
+                let mut res: Vec<f32> = vec![0.0; NUM_PIX];
+                
+                
+
                 for i_det in puntamenti.iter(){
-                    let mut _tmp: Vec<f32> = Vec::new();
+                    let mut _tmp: Vec<f32> = vec![0.0; i_det.len()];                 
                     
+                    let mut index: usize = 0;
                     for pix in i_det.iter() {
                         let pix_id = match pix.to_usize(){Some(p) => p, None => 0};
-                        _tmp.push(_x[pix_id]);
+                        _tmp[index] += _x[pix_id];
+                        index += 1;
                         
                     }
-
+                    
                     let tmp_denoise = denoise(_tmp, 8.0/3.0, 7.0, 1.0, 20.0);
                     let (map, _) = bin_map(tmp_denoise, i_det, 128);
-
+                    let map = vec![0.0; 128*128*12];
                     for i in 0..NUM_PIX{
                         res[i] += map[i];
                     }
+                }                    
+                res
 
-                }
-                res 
             })
         }
 
@@ -442,22 +440,19 @@ pub fn bin_map(tod: Vec<f32>, pix: &Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i3
 
     let num_pixs: usize = 12*nside*nside;
 
-    let mut signal_map: Vec<f32> = Vec::new();
-    let mut hit_map: Vec<i32> = Vec::new();
-    for _i in 0..num_pixs {
-        signal_map.push(0.0);
-        hit_map.push(0);
+    let mut signal_map: Vec<f32> = vec![0.0; num_pixs];
+    let mut hit_map: Vec<i32> = vec![0; num_pixs];
+
+       
+    let mut iterator: usize = 0;
+    for i in pix.iter() {
+
+        let pixel = match i.to_usize(){Some(p)=> p, None=> 0};
+        hit_map[pixel] += 1;
+        signal_map[pixel] += tod[iterator];
+        iterator += 1;
     }
 
-    let mut index: usize = 0;
-    for i in 0..tod.len() {
-        let pix_id = match pix[i].to_usize() {Some(p) => p, None => 0};
-        signal_map[pix_id] = tod[index];
-        hit_map[pix_id] += 1;
-        index += 1
-               
-    }
-    
     (signal_map, hit_map)
 
 }
@@ -466,7 +461,7 @@ pub fn bin_map(tod: Vec<f32>, pix: &Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i3
 impl Obs {
     pub fn atm_mitigation(&self, baselines_length: usize, maxiter: usize, tol: f32, nside: usize){ // It does not work...
         
-        println!("{}", "atm_mitigation process in execution...".blue());
+        println!("{}", "atm_mitigation process in execution...".bold().bright_blue());
 
         const NUM_PIX: usize = 12*128*128;
 
@@ -501,8 +496,8 @@ impl Obs {
             }
         }
         
-        fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
-            Box::new(|_x: Vec<f32>, puntamenti:Vec<Vec<i32>>|  { 
+        fn a() -> Box<dyn Fn(&Vec<f32>, &Vec<Vec<i32>>) -> Vec<f32>> {
+            Box::new(|_x: &Vec<f32>, puntamenti: &Vec<Vec<i32>>|  { 
                 let mut res: Vec<f32> = Vec::new();
                 for _i in 0..NUM_PIX {
                     res.push(0.0);
@@ -535,7 +530,7 @@ impl Obs {
                         res[i] += map[i];
                     }
                 }
-               _x 
+                _x.to_vec()
             })
         }
 
@@ -564,8 +559,6 @@ impl Obs {
         println!("{}", "WRITE MAP COMPLETED".bright_green());
         /*
         ************************************************************************/
-
-
         
     }
 }
