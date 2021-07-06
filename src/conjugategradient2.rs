@@ -1,3 +1,7 @@
+extern crate rayon;
+
+use rayon::prelude::*;
+
 pub fn conjgrad2(a: Box<dyn Fn(&Vec<f32>, &Vec<Vec<i32>>) -> Vec<f32>>, b: Vec<f32>, tol: f32, maxiter:usize, pr: Box<dyn Fn(Vec<f32>) -> Vec<f32>> , pixes: &Vec<Vec<i32>>) -> Vec<f32> {
     println!("{}", "Starting CG...");
     let n = b.len();
@@ -5,8 +9,10 @@ pub fn conjgrad2(a: Box<dyn Fn(&Vec<f32>, &Vec<Vec<i32>>) -> Vec<f32>>, b: Vec<f
     let mut x: Vec<f32> = vec![0.0; b.len()];
     let mut r: Vec<f32> = b.clone();
     let mut p: Vec<f32> = r.clone();
+
+
     
-    let mut ap: Vec<f32> = a(&p.clone(), &pixes.clone());
+    let mut ap: Vec<f32> = a(&p, &pixes);
     let mut pap: f32 = p.iter().zip(ap.iter()).map(|i| i.0 * i.1).sum::<f32>(); // ZERO!!
     let rr: f32 = r.iter().map(|r| r*r).sum();
 
@@ -17,7 +23,6 @@ pub fn conjgrad2(a: Box<dyn Fn(&Vec<f32>, &Vec<Vec<i32>>) -> Vec<f32>>, b: Vec<f
 
     println!("{}", "Starting iteration...");
     for i in 0..r.len(){
-        // println!("{} -- {}", &r[i], &ap[i]);
         r[i] = &r[i] - alpha*&ap[i]; 
     }
 
