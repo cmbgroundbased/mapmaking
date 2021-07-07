@@ -58,7 +58,7 @@ pub fn split_mc(p: String, id: &str) -> &str {
   
 	_my_obs.binning();
 	// _my_obs.dummy_denoise();
-	_my_obs.gls_denoise(1E-5, 12, 128);
+	_my_obs.gls_denoise(1E-5, 10, 128);
 	
 	// _my_obs.atm_mitigation(1, 10, 1E-10, 128);
 	id
