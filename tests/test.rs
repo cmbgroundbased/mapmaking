@@ -1,9 +1,6 @@
 extern crate mapmaking;
 use approx;
 use mapmaking::iteratorscustom::FloatIterator;
-use mapmaking::conjugategradient::conjgrad;
-use mapmaking::conjugategradient2::conjgrad2;
-use num::ToPrimitive;
 extern crate npy_derive;
 extern crate npy;
 
@@ -17,68 +14,35 @@ fn test_float_iterator() {
     }
 }
 
+use crate::mapmaking::conjugategradient::conjgrad;
+
 #[test]
 fn test_conjugate_gradient() {
+    let b = vec![1.0, 2.0];
 
-    let b: Vec<f32> = vec![2.0, 2.0, 2.0, 2.0];
-    let pixes: Vec<Vec<i32>> = Vec::new();
-
-    fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
-        Box::new(|_x: Vec<f32>, _y: Vec<Vec<i32>>| {
-            
-            let mut res: Vec<f32> = Vec::new();
-            
-            for _i in 0..4 {
-                res.push(0.0);
+    fn mul_m() -> Box< dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
+        Box::new(|_x: Vec<f32>, _p: Vec<Vec<i32>>| {
+            let a = vec![4.0, 1.0, 1.0, 3.0];
+            let mut x = vec![0.0; 2];
+            for i in 0..2{
+                for j in 0..2{
+                    x[i] += a[i*2+j] * _x[j];
+                }
             }
-
-            for i in 0..4 {
-                res[i] = 1.0; //* match i.to_f32() {Some(p) => p, None => 0.0} + 1.0; 
-            }
-
-            res  
-        })   
-    }
- 
-    fn p() -> Box<dyn Fn(Vec<f32>) -> Vec<f32>> {
-        Box::new(|x| x)
+            x
+        })
     }
 
-    let res = conjgrad(a(), b, 1E-10, 5, p(), &pixes);
+    let pixel = vec![vec![0, 1, 2]];
 
-    assert_eq!(res, vec![1.0, 0.5, 0.33, 0.25] );
 
-}
+    fn precc() -> Box<dyn Fn(Vec<f32>) -> Vec<f32>> {
+        Box::new(|x| x.iter().map(|x| 1.0*x).collect::<Vec<f32>>())
+    } 
 
-#[test]
-fn test_conjugate_gradient2() {
+    let res = conjgrad(mul_m(), b, 1e-5, 100, precc(), pixel);
 
-    let b: Vec<f32> = vec![1.0, 1.0, 1.0, 1.0];
-    let pixes: Vec<Vec<i32>> = Vec::new();
+    println!("{:?}", res);
 
-    fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
-        Box::new(|_x: Vec<f32>, _y: Vec<Vec<i32>>| {
-            
-            let mut res: Vec<f32> = Vec::new();
-            
-            for _i in 0..4 {
-                res.push(0.0);
-            }
-
-            for i in 0..4 {
-                res[i] = 1.0 * match i.to_f32() {Some(p) => p, None => 0.0} + 1.0; 
-            }
-
-            res  
-        })   
-    }
- 
-    fn p() -> Box<dyn Fn(Vec<f32>) -> Vec<f32>> {
-        Box::new(|x| x)
-    }
-
-    let res = conjgrad2(a(), b, 1E-10, 5, p(), &pixes);
-
-    assert_eq!(res, vec![1.0, 0.5, 0.33, 0.25] );
-
+    assert_eq!(vec![0.09090909, 0.6363636], res);
 }

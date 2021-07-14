@@ -3,7 +3,6 @@
 mod iteratorscustom;
 
 use crate::Obs;
-//use core::num;
 use std::fs::read_dir;
 use std::path::{Path, PathBuf};
 use colored::*;
@@ -11,18 +10,20 @@ use std::io;
 use ndarray::Array1;
 use ndarray_npy::NpzReader;
 use std::fs::File;
-// use gnuplot::*;
+use std::marker::PhantomData;
 
-pub struct DirStruct {
+pub struct DirStruct <'a> {
     _outer_directory: Vec<PathBuf>,
     mc_path: Vec<PathBuf>,
     _mc_samples: usize,
     _start_date: String,
     _observation_time: String,
     entry_point: String,
+
+    phantom: &'a PhantomData<f32>,
 }
 
-impl DirStruct {
+impl <'a> DirStruct <'a> {
     pub fn new(path: &Path, obs_time: String) -> Result<Self, Box<dyn std::error::Error>> {
         let mut _mc_samples = 0;
         let mut _start_date = "";
@@ -88,69 +89,14 @@ impl DirStruct {
                                 None => "Empty",
                             }
                         ),
+            phantom: &PhantomData::<f32>,
         };
 
         Ok(data_struct)
     } // end of the new function
 }
-// 43000001.0
 
-// impl DirStruct {
-//     pub fn create_obs(&self, id_mc: &str, sky_t: Vec<f32>) {
-//         let mut tod_vec: Vec<Vec<f32>> = Vec::new();
-//         let mut pix_vec: Vec<Vec<i32>> = Vec::new();
-
-//         let mc_id =   match id_mc.split("43").skip(1).next() {
-//             Some(c) => match c.split(".").next(){
-//                 Some(m_o) => m_o,
-//                 None => "Primo Err.",
-//             },
-//             None => "Secondo Err.",
-//         };
-//         let mc_id_u8 = String::from(mc_id).parse::<u8>().unwrap();
-
-//         let total_file = self.get_mc_path();
-//         let total_file_string= total_file.iter()
-//                                                     .map(|f| match f.to_str() {Some(p) => p, None=> ""});
-        
-//         let files_tod = total_file_string
-//                                                     .filter(
-//                                                         |&s| wildmatch::WildMatch::new(format!("*{}*",id_mc).as_str())
-//                                                         .matches(s)
-//                                                     );
-
-//         let det_names = 
-
-        
-//         for i in 0..files_pix.len() {
-//             println!("{}", files_pix[i]);
-//             // let mut a = NpzReader::new(File::open(i).unwrap()).unwrap();
-//             // let c: Array1<f32> = a.by_name("arr_0.npy").unwrap();
-//             // tod_vec.push(c.to_vec());
-//             /********************************/
-//         }
-            
-
-//         //     _pix_file_name = format!("{}{}/{}_pix.npz", self.entry_point, third_part, det_i);
-
-//         //     let mut _pix_point: Vec<i32> =Vec::new();
-//         //     let pix_path = Path::new(_pix_file_name.as_str());
-//         //     let mut a = NpzReader::new(File::open(pix_path).unwrap()).unwrap();
-//         //     let c: Array1<i32> = a.by_name("arr_0.npy").unwrap();
-//         //     _pix_point = c.to_vec();
-
-
-
-//         // }
-
-
-
-//     }
-
-//    // }
-// }
-
-impl DirStruct {
+impl <'a> DirStruct <'a> {
     pub fn create_observations(&self, id_mc_ref: &str, sky_t: Vec<f32>) -> Obs {
         
         let mut tod_vec: Vec<Vec<f32>> = Vec::new();
@@ -164,7 +110,7 @@ impl DirStruct {
                                             },
                                             None => "Secondo Err.",
                                         };
-        let mc_id_u8 = String::from(mc_id).parse::<u8>().unwrap();
+        let mc_id_u8: u8 = String::from(mc_id).parse::<u8>().unwrap();
  
         let total_file = self.get_mc_path();
         let total_file_string= total_file.iter()
@@ -216,36 +162,37 @@ impl DirStruct {
             println!("TOD: {}, PIX: {}", i.bright_green(), pix_name_string.bright_green());
 
         } // end of the main loop scope
-        
-           
+
+        /* The signature of the new function of the Obs struct. The struc is constructed using 
+           a &'static Vec<Vec<f32>> type for tods container. In this way I can pass it easy to the various threads
+           that create the maps for each detector */
+     
         let obs = Obs::new(
             String::from("Start"), 
             String::from("Stop"), 
             det_vec, 
-            mc_id_u8, 
+            mc_id_u8 as u8, 
             1.0, 
             0.01,
-            pix_vec,
-            tod_vec.as_mut(),
+            tod_vec,
             sky_t,
+            pix_vec,
         );
         println!("{}", "OBS BUILT".bright_green());
 
+        
+        
         obs
     }
 }
 
-impl DirStruct {
+impl <'a> DirStruct <'a> {
     pub fn _get_outer_directory(&self) -> Vec<PathBuf> {
         self._outer_directory.clone()
     }
     pub fn _get_mc_samples(&self) -> usize {
         self._mc_samples
     }
-
-    // pub fn get_start_date(&self) -> String {
-    //     self.start_date.clone()
-    // }
 
     pub fn _get_obs_time(&self) -> String {
         self._observation_time.clone()
@@ -255,7 +202,4 @@ impl DirStruct {
         self.mc_path.clone()
     }
 
-    // pub fn get_entry_point(&self) -> String {
-    //     self.entry_point.clone()
-    // }
 }

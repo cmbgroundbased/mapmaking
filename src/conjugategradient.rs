@@ -1,52 +1,59 @@
-pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>, b: Vec<f32>, tol: f32, maxiter:usize, pr: Box<dyn Fn(Vec<f32>) -> Vec<f32>> , pixes: &Vec<Vec<i32>>) -> Vec<f32> {
-  
-    let mut x: Vec<f32> = b.iter().map(|f| *f * 0.0).collect();
+pub mod linalgebra;
+use linalgebra::dot_prod;
+use std::time::{Duration, Instant, SystemTime};
+
+pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>, 
+                b: Vec<f32>, _tol: f32, maxiter:usize, 
+                pr: Box<dyn Fn(Vec<f32>)->Vec<f32>>, pixs: Vec<Vec<i32>>) -> Vec<f32> {
+    
+    let verbose = true;
+    
+    let mut x = vec![0.0; b.len()];
     let mut r = b.clone();
-    let n: usize = b.len();
+    let z = pr(r.clone()); 
 
+    let mut p = z.clone();
 
-    let z = pr(r.clone()); //*************** */
-    let mut _rz: f32 = r.clone().iter().zip(z.iter()).map(|c| c.0 * c.1).sum();;
-
-    //let rz: f32 = r.clone().iter().zip(z.iter()).map(|c| c.0 * c.1).sum();
-
-    let rz0 = _rz;
-    let p: Vec<f32> = z;
-    let _n_iter: usize = 0;
-
-    let mut pap: f32 = 0.0;
+    let mut rold = dot_prod(r.clone(), r.clone());
+   
     for _i in 0..maxiter {
-        let ap: Vec<f32> = a(p.clone(), pixes.clone());
-        pap = p.clone().iter().zip(ap.iter()).map(|c| c.0 * c.1).sum::<f32>();
-        let alpha = _rz / pap;
-
-
-        println!("Alpha: {}", alpha);
-        println!("PAP  : {}", pap);
-
-        for i in 0..n {
-            x[i] += alpha * p[i];
-            r[i] -= alpha * ap[i];
-        }
 
         let z = pr(r.clone());
+        let gamma = dot_prod(r.clone(), z.clone());
 
-        let next_rz: f32 = r.clone().iter().zip(z.iter()).map(|c| c.0 * c.1).sum();
-        let err: f32 = next_rz / rz0;
+        // 19 sec !!!
+
+        let ap = a(p.clone(), pixs.clone());  // E' UN SUICIDIO!!!!!!!!!!!!!
         
-        /* DEBUG
-        *******************************/
-        println!("CG error: {}", err);
-        println!("************");
-        /******************************
-        */
+
+        let alpha = gamma / dot_prod(p.clone(), ap.clone());
         
-        let beta: f32 = next_rz / _rz; 
-        let _rz: f32 = next_rz;
-        let mut p = p.clone();
-        for i in 0..n {
-            p[i] = z[i] + beta * p[i];
+        for i in 0..x.len() {
+            x[i] = x[i] + alpha * p[i]
         }
+
+        for i in 0..r.len() {
+            r[i] = r[i] - alpha*ap[i];
+        }
+
+        let znew = pr(r.clone());
+
+        let beta = dot_prod(r.clone(), znew.clone()) / gamma;
+        let rnew = dot_prod(r.clone(), r.clone());
+        
+        for i in 0..p.len(){
+            p[i] = znew[i] + beta * p[i];
+        }
+
+        println!("Res: {}", rnew/rold); 
+        
+        if rnew <= _tol {
+            break;
+        }
+
+        rold = rnew;
+
     }
     x
+    
 }
