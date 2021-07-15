@@ -369,6 +369,7 @@ fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
 pub fn p() -> Box<dyn Fn(Vec<f32>) -> Vec<f32>> {
 
     Box::new(|m| m.iter().map(|m| { 1.0*m } ).collect::<Vec<f32>>())
+}
 
 
 impl <'a> Obs <'a>{
