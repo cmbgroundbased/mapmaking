@@ -6,7 +6,7 @@ pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>,
                 b: Vec<f32>, _tol: f32, maxiter:usize, 
                 pr: Box<dyn Fn(Vec<f32>)->Vec<f32>>, pixs: Vec<Vec<i32>>) -> Vec<f32> {
     
-    
+   
     let mut x = vec![0.0; b.len()];
     let mut r = b.clone();
     let z = pr(r.clone()); 

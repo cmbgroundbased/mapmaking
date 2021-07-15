@@ -67,6 +67,7 @@ impl <'a> Obs <'a> {
         sky: Vec<f32>,
         pix: Vec<Vec<i32>> ) -> Self 
         {
+
             let mut tod_final: Vec<Vec<f32>> = Vec::new();
 
             for (i, j) in tod.iter().zip(pix.iter()){
@@ -203,7 +204,7 @@ impl <'a> Obs <'a>{
 pub fn fn_noise_prior(f: f32, alpha: f32, f_k: f32, sigma: f32, _n: f32) -> f32 {
     let mut _np: f32 = 0.0;
     if f > 0.0 {
-
+      
         let _np_g = f32::exp( -((10.0 - f) * (10.0-f))   /   (2.0 * 0.0002));
         _np = sigma * f32::powf(  1.0 + f_k/(10.0-f), alpha.clone()) + 8E8 * _np_g ;
 
@@ -333,9 +334,6 @@ fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
         let mut temp_maps: Vec<Vec<f32>> = Vec::new();
         let mut res: Vec<f32> = vec![0.0; 12*128*128];
 
-    
-
-
         let pool_denoise = ThreadPool::new(16);
         let (tx, rx) = mpsc::channel();
 
@@ -371,8 +369,6 @@ fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
 pub fn p() -> Box<dyn Fn(Vec<f32>) -> Vec<f32>> {
 
     Box::new(|m| m.iter().map(|m| { 1.0*m } ).collect::<Vec<f32>>())
-
-}
 
 
 impl <'a> Obs <'a>{

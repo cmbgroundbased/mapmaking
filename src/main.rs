@@ -1,6 +1,8 @@
 extern crate mapmaking;
+
 pub mod threadpool;
 use threadpool::ThreadPool;
+
 use clap::{App, Arg};
 mod directory;
 use directory::DirStruct;
@@ -8,6 +10,7 @@ use std::path::Path;
 use mapmaking::{Obs, sky};
 
 use std::thread::sleep;
+
 
 fn main() {
 	let program = App::new("Strip MapMaker")
@@ -52,7 +55,7 @@ pub fn split_mc(p: String, id: &str) -> &str {
 
 	let _my_obs = directory_tree.create_observations(id, t_sky);
   
-	_my_obs.binning();
+	// _my_obs.binning();
 	// _my_obs.dummy_denoise();
 	_my_obs.gls_denoise(1E-5, 20, 128);
 	
