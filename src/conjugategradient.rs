@@ -6,8 +6,7 @@ pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>,
                 b: Vec<f32>, _tol: f32, maxiter:usize, 
                 pr: Box<dyn Fn(Vec<f32>)->Vec<f32>>, pixs: Vec<Vec<i32>>) -> Vec<f32> {
     
-    let verbose = true;
-    
+   
     let mut x = vec![0.0; b.len()];
     let mut r = b.clone();
     let z = pr(r.clone()); 
@@ -22,9 +21,9 @@ pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>,
         let gamma = dot_prod(r.clone(), z.clone());
 
         // 19 sec !!!
-
+        //let now = Instant::now();
         let ap = a(p.clone(), pixs.clone());  // E' UN SUICIDIO!!!!!!!!!!!!!
-        
+        //println!("A(x) = {}", now.elapsed().as_secs());
 
         let alpha = gamma / dot_prod(p.clone(), ap.clone());
         

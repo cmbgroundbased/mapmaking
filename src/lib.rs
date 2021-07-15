@@ -29,11 +29,11 @@ use num::ToPrimitive;
 use num::complex::Complex32;
 use rustfft::FftPlanner;
 use rustfft::num_complex::Complex;
-use rustfft::algorithm::Radix4;
-use noisemodel::NoiseModel;
-use std::time::Instant;
+// use rustfft::algorithm::Radix4;
+// use noisemodel::NoiseModel;
+// use std::time::Instant;
 
-use gnuplot::*;
+// use gnuplot::*;
 
 use std::marker::PhantomData;
 
@@ -67,19 +67,20 @@ impl <'a> Obs <'a> {
         sky: Vec<f32>,
         pix: Vec<Vec<i32>> ) -> Self 
         {
-            // let mut tod_final: Vec<Vec<f32>> = Vec::new();
 
-            // for (i, j) in tod.iter().zip(pix.iter()){
-            //     let noise = NoiseModel::new(50.0, 7e9, 1.0/20.0, 0.1, 1.0, 123, i.len());
-            //     let tod_noise = noise.get_noise_tod();
-            //     let mut tmp: Vec<f32> = Vec::new();
-            //     for (_n, (k, l)) in i.into_iter().zip(j.iter()).enumerate(){
-            //         let t_sky = sky[match l.to_usize() {Some(p) => p, None=>0}];
-            //         let r = tod_noise[_n];
-            //         tmp.push(k + t_sky + r)
-            //     }
-            //     tod_final.push(tmp);
-            // }
+            let mut tod_final: Vec<Vec<f32>> = Vec::new();
+
+            for (i, j) in tod.iter().zip(pix.iter()){
+                //let noise = NoiseModel::new(50.0, 7e9, 1.0/20.0, 0.1, 1.0, 123, i.len());
+                //let tod_noise = noise.get_noise_tod();
+                let mut tmp: Vec<f32> = Vec::new();
+                for (_n, (k, l)) in i.into_iter().zip(j.iter()).enumerate(){
+                    let t_sky = sky[match l.to_usize() {Some(p) => p, None=>0}];
+                    //let r = tod_noise[_n];
+                    tmp.push(k + t_sky);
+                }
+                tod_final.push(tmp);
+            }
             
             return Obs {
                 start,
@@ -89,7 +90,7 @@ impl <'a> Obs <'a> {
                 alpha,
                 f_knee,
                 pix,
-                tod, //tod_final,
+                tod: tod_final,
                 sky_t: sky,
                 phantom: PhantomData,
             }
@@ -134,33 +135,48 @@ impl <'a> Obs <'a>{
         const NSIDE: usize = 128;
         const NUM_PIX: usize = NSIDE*NSIDE*12;
 
+        
+        let mut signal_maps: Vec<Vec<f32>> = Vec::new();
+        let mut hit_maps: Vec<Vec<i32>>    = Vec::new();
 
-        // MEMORY!!!!!
-        let mut signal_map: Vec<f32> = Vec::new();
-        let mut hit_map: Vec<f64>   = Vec::new();
-        for _i in 0..NUM_PIX {
-            signal_map.push(0.0);
-            hit_map.push(0.0)
+        let pix = &self.pix;
+        let tod = &self.tod;
+
+        let bin_pool = ThreadPool::new(16);
+        let (tx, rx) = mpsc::channel();
+
+        for i in 0..tod.len() {
+            let t = tod[i].clone();
+            let p = pix[i].clone();
+            let tx = tx.clone();
+            bin_pool.execute(move ||{
+                let (sig_par, hit_par) = bin_map(t.clone(), p.clone(), 128);
+                tx.send((sig_par, hit_par)).unwrap();
+            });
         }
 
-        let vect_pix = &self.pix;
-        let tod = &self.tod;
+        for _i in 0..tod.len() {
+            let rec = rx.recv().unwrap();
+            signal_maps.push(rec.0.clone());
+            hit_maps.push(rec.1.clone());
+        }
+
+        let mut final_sig: Vec<f32> = vec![0.0; NUM_PIX];
+        let mut final_hit: Vec<i32> = vec![0; NUM_PIX];
+
         
+        for idx in 0..signal_maps.len() {
+            let s = signal_maps[idx].clone();
+            let h = hit_maps[idx].clone();
 
-        for (i, j) in vect_pix.iter().zip(tod.iter()) {            
-            let mut iterator: usize = 0;
-            for pix in i.iter() {
-
-                let pixel = match pix.to_usize(){Some(p) => p, None=>0};
-                hit_map[pixel] += 1.0;
-                signal_map[pixel] += match j.get(iterator) {Some(s) => s.clone(), None=>0.0};
-                iterator += 1;
+            for pidx in 0..NUM_PIX{
+                let signal = s[pidx];
+                let hits = h[pidx];
+                final_sig[pidx] += signal;
+                final_hit[pidx] += hits;
             }
         }
-
-        let vec_signal = signal_map;
-        let vec_hit    = hit_map;
-
+        
         println!("{}", "COMPLETED".bright_green());
 
         /***PRINT ON FILE */
@@ -172,15 +188,15 @@ impl <'a> Obs <'a>{
 
         let mut f = File::create(file_name).unwrap();
 
-        let hit: Vec<String> = vec_hit.iter().map(|a| a.to_string()).collect();
-        let sig: Vec<String> = vec_signal.iter().map(|a| a.to_string()).collect();
+        let hit: Vec<String> = final_hit.iter().map(|a| a.to_string()).collect();
+        let sig: Vec<String> = final_sig.iter().map(|a| a.to_string()).collect();
 
         for (i,j) in hit.iter().zip(sig.iter()) {
             writeln!(f, "{}\t{}",i, j).unwrap();
         }
 
-        drop(vec_signal);
-        drop(vec_hit);
+        drop(final_hit);
+        drop(final_sig);
         println!("{}", "COMPLETED".bright_green());
     }
 }
@@ -188,14 +204,14 @@ impl <'a> Obs <'a>{
 pub fn fn_noise_prior(f: f32, alpha: f32, f_k: f32, sigma: f32, _n: f32) -> f32 {
     let mut _np: f32 = 0.0;
     if f > 0.0 {
-
-        let _np_g = f32::exp( -((10.0 - f) * (10.0-f))   /   (2.0 * 0.0055));
-        _np = sigma * f32::powf(  1.0 + f_k/(10.0-f), alpha.clone()) - 8E8 * _np_g ;
+      
+        let _np_g = f32::exp( -((10.0 - f) * (10.0-f))   /   (2.0 * 0.0002));
+        _np = sigma * f32::powf(  1.0 + f_k/(10.0-f), alpha.clone()) + 8E8 * _np_g ;
 
     } else {
 
-        let _np_g = f32::exp( -((10.0 + f) * (10.0-f))   /   (2.0 * 0.0055));
-        _np = sigma*sigma * f32::powf(  1.0 + f_k/(10.0+f), alpha.clone()) - 8E8 * _np_g;
+        let _np_g = f32::exp( -((10.0 + f) * (10.0-f))   /   (2.0 * 0.0002));
+        _np = sigma*sigma * f32::powf(  1.0 + f_k/(10.0+f), alpha.clone()) + 8E8 * _np_g;
     }
     _np
 } 
@@ -305,8 +321,8 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, _fs: f32) -> 
 
 pub fn get_b(tod: Vec<f32>, pix: Vec<i32>, nside: usize) -> Vec<f32> {
     let mut b: Vec<f32> = vec![0.0; 12*128*128];
-    let tod_n = denoise(tod.clone(), 5.0/3.0, 5.0, 5.0, 20.0);
-    let (map, _) = bin_map(tod_n.clone(), &pix, nside);
+    let tod_n = denoise(tod.clone(), 8.0/3.0, 7.0, 1.0, 20.0);
+    let (map, _) = bin_map(tod_n.clone(), pix, nside);
     for i in 0..12*nside*nside {
         b[i] += map[i];
     }
@@ -315,41 +331,44 @@ pub fn get_b(tod: Vec<f32>, pix: Vec<i32>, nside: usize) -> Vec<f32> {
 
 fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
     Box::new(|_x: Vec<f32>, pointings: Vec<Vec<i32>>|  {
+        let mut temp_maps: Vec<Vec<f32>> = Vec::new();
         let mut res: Vec<f32> = vec![0.0; 12*128*128];
-        
-        
 
-        for i_det in pointings.iter(){// questo ciclo qui dura 19 secondi
-            let mut _tmp: Vec<f32> = vec![0.0; i_det.len()]; // 0.000 sec
-            
-                            
-            
-            let mut index: usize = 0;
-            for pix in i_det.iter() { // 0.006
-                let pix_id = match pix.to_usize(){Some(p) => p, None => 0};
-                _tmp[index] += _x[pix_id];
-                index += 1;
-                
-            }
-            let tmp_denoised = denoise(_tmp, 5.0/3.0, 5.0, 5.0, 20.0); // 0.151
-            let (map, _) = bin_map(tmp_denoised, i_det, 128); // 0.008
-            
-            for i in 0..12*128*128{ // 0.014
-                res[i] += map[i];
-            }
+        let pool_denoise = ThreadPool::new(16);
+        let (tx, rx) = mpsc::channel();
+
+        for i_det in pointings.iter() {
+            let mut tmp: Vec<f32> = Vec::new();
+            let tx = tx.clone();
+            let point_i = i_det.clone();
+            let x = _x.clone();
+            pool_denoise.execute(move ||{
+                for i in point_i.iter() {
+                    tmp.push(x[*i as usize]);
+                }
+                let tmp_denoised = denoise(tmp.clone(), 8.0/3.0, 7.0, 1.0, 20.0);
+                let (map, _) = bin_map(tmp_denoised.clone(), point_i.clone(), 128);
+                tx.send(map).unwrap(); 
+            });
         }
-                            
-        res
 
+        for _i in 0..pointings.len() {
+            temp_maps.push(rx.recv().unwrap());
+        }
         
+        for map in temp_maps.iter() {
+            res = res.iter().zip(map.iter()).map(|(r, m)| r+m).collect::<Vec<f32>>();
+        }
+                                   
+        res
 
     })
 }
 
 
 pub fn p() -> Box<dyn Fn(Vec<f32>) -> Vec<f32>> {
-    Box::new(|x| x)
-}
+
+    Box::new(|m| m.iter().map(|m| { 1.0*m } ).collect::<Vec<f32>>())
 
 
 impl <'a> Obs <'a>{
@@ -415,7 +434,7 @@ impl <'a> Obs <'a>{
 
 } // End of GLS_DENOISE
 
-pub fn bin_map(tod: Vec<f32>, pix: &Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i32>) {
+pub fn bin_map(tod: Vec<f32>, pix: Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i32>) {
 
     let num_pixs: usize = 12*nside*nside;
 

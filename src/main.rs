@@ -1,10 +1,8 @@
 extern crate mapmaking;
-// pub mod threadpool;
+
 pub mod threadpool;
-//use colored::Colorize;
 use threadpool::ThreadPool;
 
-//use std::{slice::SliceIndex, sync::{Arc, Barrier, atomic::AtomicUsize, mpsc::channel}, thread, time::Duration};
 use clap::{App, Arg};
 mod directory;
 use directory::DirStruct;
@@ -12,8 +10,7 @@ use std::path::Path;
 use mapmaking::{Obs, sky};
 
 use std::thread::sleep;
-// use gnuplot::{Figure, Caption, Color};
-// use mapmaking::iteratorscustom::FloatIterator;
+
 
 fn main() {
 	let program = App::new("Strip MapMaker")
