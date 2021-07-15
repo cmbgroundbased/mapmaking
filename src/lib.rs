@@ -141,8 +141,8 @@ impl <'a> Obs <'a>{
 
         let pix = &self.pix;
         let tod = &self.tod;
-
-        let bin_pool = ThreadPool::new(16);
+        let num_threads = num_cpus::get();
+        let bin_pool = ThreadPool::new(num_threads);
         let (tx, rx) = mpsc::channel();
 
         for i in 0..tod.len() {
@@ -334,7 +334,8 @@ fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
         let mut temp_maps: Vec<Vec<f32>> = Vec::new();
         let mut res: Vec<f32> = vec![0.0; 12*128*128];
 
-        let pool_denoise = ThreadPool::new(16);
+        let num_threads = num_cpus::get();
+        let pool_denoise = ThreadPool::new(num_threads);
         let (tx, rx) = mpsc::channel();
 
         for i_det in pointings.iter() {
@@ -391,7 +392,8 @@ impl <'a> Obs <'a>{
 
         let mut partial_maps: Vec<Vec<f32>> = Vec::new();
        
-        let my_pool_b = ThreadPool::new(16);
+        let num_threads = num_cpus::get();
+        let my_pool_b = ThreadPool::new(num_threads);
         for idx_th in 0..tods.len() {
             
             let t = tods[idx_th].clone();

@@ -21,9 +21,9 @@ fn main() {
 					 .arg(Arg::with_name("mc_id").short("i").long("mc_id").takes_value(true).help("Returns the map at the `mc_id` Monte Carlo iteration"))
 					 .get_matches();
 
-	const NUM_THREADS: usize = 1;
+	let num_threads = num_cpus::get();
 	const NUM_MC_ITER: usize = 50;
-	let my_pool = ThreadPool::new(NUM_THREADS);
+	let my_pool = ThreadPool::new(num_threads);
 
 
 	let mc_id_set = ["43000000.0", "43000001.0", "43000002.0", "43000003.0", "43000004.0", "43000005.0", "43000006.0", "43000007.0", "43000008.0", "43000009.0", "43000010.0", "43000011.0",

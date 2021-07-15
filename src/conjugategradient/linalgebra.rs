@@ -3,7 +3,8 @@ use threadpool::ThreadPool;
 use std::sync::mpsc;
 
 pub fn dot_prod(a: Vec<f32>, b: Vec<f32>) -> f32{
-    let my_pool = ThreadPool::new(16);
+    let num_threads = num_cpus::get();
+    let my_pool = ThreadPool::new(num_threads);
     let (tx, rx) = mpsc::channel();
     
     assert!(a.len() == b.len());
