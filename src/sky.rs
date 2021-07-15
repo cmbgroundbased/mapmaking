@@ -14,18 +14,22 @@ impl Sky {
         let mut _sky_map_t: Vec<f32> = Vec::new();
         let mut _sky_map_q: Vec<f32> = Vec::new();
         let mut _sky_map_u: Vec<f32> = Vec::new();
+        
 
         let mut buffer_t = Vec::new();
         let mut buffer_q = Vec::new();
         let mut buffer_u = Vec::new();
+        
 
         File::open("Sky_Maps/T_map.npy").unwrap().read_to_end(&mut buffer_t).unwrap();
         File::open("Sky_Maps/Q_map.npy").unwrap().read_to_end(&mut buffer_q).unwrap();
         File::open("Sky_Maps/U_map.npy").unwrap().read_to_end(&mut buffer_u).unwrap();
         
+        
         _sky_map_t = NpyData::from_bytes(&mut buffer_t).unwrap().to_vec();
         _sky_map_q = NpyData::from_bytes(&mut buffer_q).unwrap().to_vec();
         _sky_map_u = NpyData::from_bytes(&mut buffer_u).unwrap().to_vec();
+        
 
         Sky {
             _nside: 128,

@@ -1,9 +1,4 @@
 //! Small things that don't fit anywhere else.
-
-use std::fs;
-use std::io::{Read, Write};
-use std::path::Path;
-
 /// Lookup table for numbers used in `bessel_i0()`
 ///
 /// 1 / (n! * 2^n)^2
