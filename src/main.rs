@@ -18,13 +18,12 @@ fn main() {
 					 .author("Stefano Mandelli")
 					 .about("MapMaking program to mitigate the systematic effects and recontruct the maps in Intensity and Polarization")
 					 .arg(Arg::with_name("tod_path").short("t").long("tod_path").takes_value(true).help("Path of the TOD's direcotry"))
-					 .arg(Arg::with_name("mc_id").short("i").long("mc_id").takes_value(true).help("Returns the map at the `mc_id` Monte Carlo iteration"))
+					 //.arg(Arg::with_name("threads").short("ph").long("threads_num").takes_value(true).help("Number threads"))
 					 .get_matches();
 
 	let num_threads = num_cpus::get();
 	const NUM_MC_ITER: usize = 50;
-	let my_pool = ThreadPool::new(num_threads);
-
+	let my_pool = ThreadPool::new(1); 
 
 	let mc_id_set = ["43000000.0", "43000001.0", "43000002.0", "43000003.0", "43000004.0", "43000005.0", "43000006.0", "43000007.0", "43000008.0", "43000009.0", "43000010.0", "43000011.0",
                               "43000012.0", "43000013.0", "43000014.0", "43000015.0", "43000016.0", "43000017.0", "43000018.0", "43000019.0", "43000020.0", "43000021.0", "43000022.0", "43000023.0",
@@ -56,7 +55,7 @@ pub fn split_mc(p: String, id: &str) -> &str {
 	let _my_obs = directory_tree.create_observations(id, t_sky);
   
 	_my_obs.binning();
-	_my_obs.gls_denoise(1E-5, 20, 128);
+	//_my_obs.gls_denoise(1E-5, 20, 128);
 
 	id
 

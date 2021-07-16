@@ -418,7 +418,6 @@ impl <'a> Obs <'a>{
                 b[n] += j;
             }
         }
-
         let map = conjgrad(a(), b, 1e-5, _maxiter, p(), pixs.clone());
 
         /***PRINT ON FILE */
@@ -432,10 +431,10 @@ impl <'a> Obs <'a>{
             writeln!(f, "{}",i).unwrap();
         }
         println!("{}", "COMPLETED".bright_green());          
-    }
+    
+    }// End of GLS_DENOISE
 
-
-} // End of GLS_DENOISE
+} 
 
 pub fn bin_map(tod: Vec<f32>, pix: Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i32>) {
 
