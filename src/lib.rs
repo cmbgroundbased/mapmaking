@@ -321,7 +321,7 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, _fs: f32) -> 
 
 pub fn get_b(tod: Vec<f32>, pix: Vec<i32>, nside: usize) -> Vec<f32> {
     let mut b: Vec<f32> = vec![0.0; 12*128*128];
-    let tod_n = denoise(tod.clone(), 8.0/3.0, 7.0, 1.0, 20.0);
+    let tod_n = denoise(tod.clone(), 4.0/3.0, 7.0, 30.0, 20.0);
     let (map, _) = bin_map(tod_n.clone(), pix, nside);
     for i in 0..12*nside*nside {
         b[i] += map[i];
@@ -347,8 +347,12 @@ fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
                 for i in point_i.iter() {
                     tmp.push(x[*i as usize]);
                 }
-                let tmp_denoised = denoise(tmp.clone(), 8.0/3.0, 7.0, 1.0, 20.0);
+                let tmp_denoised = denoise(tmp.clone(), 4.0/3.0, 7.0, 30.0, 20.0);
                 let (map, _) = bin_map(tmp_denoised.clone(), point_i.clone(), 128);
+                // let mut final_map = Vec::new();
+                // for (m, h) in map.iter().zip(hit.iter()) {
+                //     final_map.push(m.clone()/(h.clone() as f32));
+                // }
                 tx.send(map).unwrap(); 
             });
         }
@@ -418,7 +422,8 @@ impl <'a> Obs <'a>{
                 b[n] += j;
             }
         }
-        let map = conjgrad(a(), b, 1e-5, _maxiter, p(), pixs.clone());
+
+        let map = conjgrad(a(), b, _tol, _maxiter, p(), pixs.clone());
 
         /***PRINT ON FILE */
         println!("");
