@@ -18,17 +18,12 @@ pub mod noisemodel;
 pub mod plot_suite;
 pub mod conjugategradient;
 use threadpool::ThreadPool;
-use std::fs::File;
-use std::io::Write;
-use std::sync::mpsc;
-use std::{usize, vec};
+use std::{fs::File, io::Write, sync::mpsc, usize, vec};
 use colored::Colorize;
 use conjugategradient::conjgrad;
 use iteratorscustom::FloatIterator;
-use num::ToPrimitive;
-use num::complex::Complex32;
-use rustfft::FftPlanner;
-use rustfft::num_complex::Complex;
+use num::{ToPrimitive, complex::Complex32};
+use rustfft::{FftPlanner, num_complex::Complex};
 // use rustfft::algorithm::Radix4;
 // use noisemodel::NoiseModel;
 // use std::time::Instant;
@@ -210,6 +205,73 @@ impl <'a> Obs <'a>{
     }
 }
 
+// GLS DENOISE
+impl <'a> Obs <'a>{
+
+    pub fn gls_denoise(&self, _tol: f32, _maxiter: usize, _nside: usize){
+        
+        println!("{}", "Execution of the gls_denoise".bright_blue().bold());
+
+        const NUM_PIX: usize = 12*128*128;
+        let _x: Vec<f32> = vec![0.0; NUM_PIX];
+
+        let (tx, rx) = mpsc::channel();
+
+
+        let tods = &self.tod;
+        let pixs = &self.pix;
+
+        //println!("Len TODs: {}", tods.len()); // 55 * n_hour
+
+        let mut partial_maps: Vec<Vec<f32>> = Vec::new();
+       
+        let num_threads = num_cpus::get();
+        let my_pool_b = ThreadPool::new(num_threads);
+        for idx_th in 0..tods.len() {
+            
+            let t = tods[idx_th].clone();
+            let p = pixs[idx_th].clone();
+            let tx = tx.clone();
+            my_pool_b.execute(move || {
+                let b = get_b(t, p, 128);
+              
+                tx.send(b).expect("channel will be there waiting for the pool");
+             
+            });            
+        }
+
+        for _ in 0..tods.len(){
+            partial_maps.push(rx.recv().unwrap());
+        }
+
+        let mut b: Vec<f32> = vec![0.0; 12*128*128];
+
+        for i in partial_maps.iter(){
+            for (n,j) in i.iter().enumerate(){
+                b[n] += j;
+            }
+        }
+
+        let map = conjgrad(a(), b, _tol, _maxiter, p(), pixs.clone());
+
+        /***PRINT ON FILE */
+        println!("");
+        let id_number = self.get_mcid();
+        let file_name = format!("gls_{}.dat", id_number);
+        println!("Print maps on file: {}", file_name.bright_green().bold());
+        let mut f = File::create(file_name).unwrap();
+        let sig: Vec<String> = map.iter().map(|a| a.to_string()).collect();
+        for i in sig.iter() {
+            writeln!(f, "{}",i).unwrap();
+        }
+        println!("{}", "COMPLETED".bright_green());          
+    
+    }// End of GLS_DENOISE
+
+} 
+
+
+// UTILS functions
 pub fn fn_noise_prior(f: f32, alpha: f32, f_k: f32, sigma: f32, _n: f32) -> f32 {
     let mut _np: f32 = 0.0;
     if f > 0.0 {
@@ -225,8 +287,6 @@ pub fn fn_noise_prior(f: f32, alpha: f32, f_k: f32, sigma: f32, _n: f32) -> f32 
     _np
 } 
 
-// Design Kaiser window from parameters.
-// The length depends on the parameters given, and it's always odd.
 pub fn kaiser(beta: f32, length: i32) -> Vec<f32> {
     use crate::misc::bessel_i0 as bessel;
 
@@ -255,7 +315,6 @@ pub fn hann(length: i32) -> Vec<f32> {
 
     window
 }
-
 
 pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, _fs: f32) -> Vec<f32> {
     
@@ -327,7 +386,6 @@ pub fn denoise(tod: Vec<f32>, _alpha: f32, _f_k: f32, _sigma: f32, _fs: f32) -> 
     
 }
 
-
 pub fn get_b(tod: Vec<f32>, pix: Vec<i32>, nside: usize) -> Vec<f32> {
     let mut b: Vec<f32> = vec![0.0; 12*128*128];
     let tod_n = denoise(tod.clone(), 4.0/3.0, 7.0, 30.0, 20.0);
@@ -379,76 +437,10 @@ fn a() -> Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>> {
     })
 }
 
-
 pub fn p() -> Box<dyn Fn(Vec<f32>) -> Vec<f32>> {
 
     Box::new(|m| m.iter().map(|m| { 1.0*m } ).collect::<Vec<f32>>())
 }
-
-
-impl <'a> Obs <'a>{
-
-    pub fn gls_denoise(&self, _tol: f32, _maxiter: usize, _nside: usize){
-        
-        println!("{}", "Execution of the gls_denoise".bright_blue().bold());
-
-        const NUM_PIX: usize = 12*128*128;
-        let _x: Vec<f32> = vec![0.0; NUM_PIX];
-
-        let (tx, rx) = mpsc::channel();
-
-
-        let tods = &self.tod;
-        let pixs = &self.pix;
-
-        //println!("Len TODs: {}", tods.len()); // 55 * n_hour
-
-        let mut partial_maps: Vec<Vec<f32>> = Vec::new();
-       
-        let num_threads = num_cpus::get();
-        let my_pool_b = ThreadPool::new(num_threads);
-        for idx_th in 0..tods.len() {
-            
-            let t = tods[idx_th].clone();
-            let p = pixs[idx_th].clone();
-            let tx = tx.clone();
-            my_pool_b.execute(move || {
-                let b = get_b(t, p, 128);
-              
-                tx.send(b).expect("channel will be there waiting for the pool");
-             
-            });            
-        }
-
-        for _ in 0..tods.len(){
-            partial_maps.push(rx.recv().unwrap());
-        }
-
-        let mut b: Vec<f32> = vec![0.0; 12*128*128];
-
-        for i in partial_maps.iter(){
-            for (n,j) in i.iter().enumerate(){
-                b[n] += j;
-            }
-        }
-
-        let map = conjgrad(a(), b, _tol, _maxiter, p(), pixs.clone());
-
-        /***PRINT ON FILE */
-        println!("");
-        let id_number = self.get_mcid();
-        let file_name = format!("gls_{}.dat", id_number);
-        println!("Print maps on file: {}", file_name.bright_green().bold());
-        let mut f = File::create(file_name).unwrap();
-        let sig: Vec<String> = map.iter().map(|a| a.to_string()).collect();
-        for i in sig.iter() {
-            writeln!(f, "{}",i).unwrap();
-        }
-        println!("{}", "COMPLETED".bright_green());          
-    
-    }// End of GLS_DENOISE
-
-} 
 
 pub fn bin_map(tod: Vec<f32>, pix: Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i32>) {
 
