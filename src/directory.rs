@@ -1,7 +1,4 @@
 //! Create directory structure
-
-mod iteratorscustom;
-
 use crate::Obs;
 use std::fs::read_dir;
 use std::path::{Path, PathBuf};
