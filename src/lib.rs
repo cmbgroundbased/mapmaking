@@ -77,7 +77,7 @@ impl <'a> Obs <'a> {
                 for (_n, (k, l)) in i.into_iter().zip(j.iter()).enumerate(){
                     let t_sky = sky[match l.to_usize() {Some(p) => p, None=>0}];
                     //let r = tod_noise[_n];
-                    tmp.push(k + t_sky);
+                    tmp.push(0.54*k + t_sky);
                 }
                 tod_final.push(tmp);
             }
@@ -146,11 +146,15 @@ impl <'a> Obs <'a>{
         let (tx, rx) = mpsc::channel();
 
         for i in 0..tod.len() {
+            
             let t = tod[i].clone();
             let p = pix[i].clone();
+            
             let tx = tx.clone();
             bin_pool.execute(move ||{
+                  
                 let (sig_par, hit_par) = bin_map(t.clone(), p.clone(), 128);
+                
                 tx.send((sig_par, hit_par)).unwrap();
             });
         }
@@ -197,6 +201,11 @@ impl <'a> Obs <'a>{
 
         drop(final_hit);
         drop(final_sig);
+        drop(signal_maps);
+        drop(hit_maps);
+        drop(bin_pool);
+        drop(tod);
+        drop(pix);
         println!("{}", "COMPLETED".bright_green());
     }
 }

@@ -1,11 +1,13 @@
 extern crate mapmaking;
 
 pub mod threadpool;
+use colored::Colorize;
 use threadpool::ThreadPool;
 
 use clap::{App, Arg};
 mod directory;
 use directory::DirStruct;
+use core::panic;
 use std::path::Path;
 use mapmaking::{Obs, sky};
 
@@ -24,6 +26,7 @@ fn main() {
 	let num_threads = num_cpus::get();
 	const NUM_MC_ITER: usize = 50;
 	let my_pool = ThreadPool::new(1); 
+	panic!("{}","Set the number of threads!".black().bold().on_red());
 
 	let mc_id_set = ["43000000.0", "43000001.0", "43000002.0", "43000003.0", "43000004.0", "43000005.0", "43000006.0", "43000007.0", "43000008.0", "43000009.0", "43000010.0", "43000011.0",
                               "43000012.0", "43000013.0", "43000014.0", "43000015.0", "43000016.0", "43000017.0", "43000018.0", "43000019.0", "43000020.0", "43000021.0", "43000022.0", "43000023.0",
@@ -55,7 +58,7 @@ pub fn split_mc(p: String, id: &str) -> &str {
 	let _my_obs = directory_tree.create_observations(id, t_sky);
   
 	_my_obs.binning();
-	_my_obs.gls_denoise(1E-6, 1000, 128);
+	// _my_obs.gls_denoise(1E-6, 1000, 128);
 
 	id
 
