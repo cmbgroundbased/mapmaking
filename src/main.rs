@@ -58,7 +58,7 @@ pub fn split_mc(p: String, id: &str) -> &str {
 	let _my_obs = directory_tree.create_observations(id, t_sky);
   
 	_my_obs.binning();
-	_my_obs.gls_denoise(1E-6, 1000, 128);
+	// _my_obs.gls_denoise(1E-6, 1000, 128);
 
 	id
 
