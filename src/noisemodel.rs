@@ -1,3 +1,5 @@
+//! Given the total optical load `T_{sys}` and the `fs`, `NoiseModel` returns a TOD of white noise
+
 use rand_distr::{Distribution, Normal};
 pub struct NoiseModel {
     _sigma_k: f32,

@@ -1,3 +1,5 @@
+//! Conjugate Gradient implementation. This module resolves system like A x = b
+
 pub mod linalgebra;
 use linalgebra::dot_prod;
 // use std::time::{Duration, Instant, SystemTime};

@@ -1,3 +1,5 @@
+//! Load the sky template at 43 GHz generated with PySM 2.0
+
 use npy::NpyData;
 use std::{fs::File, io::Read};
 

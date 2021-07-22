@@ -1,3 +1,5 @@
+//! My version of the distribution of processes within the threads. Nowdays, It is works only for single node
+
 use std::{sync::{Arc, Mutex}, thread};
 use std::sync::mpsc;
 
@@ -48,7 +50,6 @@ impl ThreadPool {
 
     }
 }
-
 
 struct Worker {
     id: usize,

@@ -1,3 +1,5 @@
+//! An easy way to plot a vector in Rust
+
 extern crate criterion_plot;
 
 use criterion_plot::prelude::*;
