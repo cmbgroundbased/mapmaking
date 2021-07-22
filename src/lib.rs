@@ -122,7 +122,7 @@ impl <'a> Obs <'a>{
 // Starting from the binning, to the
 // implementation of a de_noise model
 impl <'a> Obs <'a>{
-    pub fn binning(&self) {
+    pub fn binning(&self) -> (Vec<f32>, Vec<i32>) {
 
         println!("");
         println!("Start {}", "binning".bright_blue().bold());
@@ -143,7 +143,9 @@ impl <'a> Obs <'a>{
         for i in 0..tod.len() {
             
             let t = tod[i].clone();
+            println!("{:?}", t);
             let p = pix[i].clone();
+            println!("{:?}", p);
             
             let tx = tx.clone();
             bin_pool.execute(move ||{
@@ -194,14 +196,9 @@ impl <'a> Obs <'a>{
             writeln!(f, "{}\t{}",i, j).unwrap();
         }
 
-        drop(final_hit);
-        drop(final_sig);
-        drop(signal_maps);
-        drop(hit_maps);
-        drop(bin_pool);
-        drop(tod);
-        drop(pix);
         println!("{}", "COMPLETED".bright_green());
+        (final_sig, final_hit)
+
     }
 }
 
@@ -461,4 +458,37 @@ pub fn bin_map(tod: Vec<f32>, pix: Vec<i32>, nside: usize) -> (Vec<f32>, Vec<i32
 
     (signal_map, hit_map)
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_obs() {
+        let nside = 128;
+        
+        let sky = vec![0.0; 12*nside*nside];
+
+        let obs = Obs::new(
+            String::from("start"),
+            String::from("stop"),
+            vec![String::from("det1")],
+            1,
+            1.0,
+            0.01,
+            vec![vec![300.0, 300.0, 300.0]],
+            sky,
+            vec![vec![1, 1, 3]]
+        );
+
+        let bin_map = obs.binning();
+
+        let sig_1_map = bin_map.0[1];
+        let pix_1_map = bin_map.1[1];
+
+        assert_eq!(sig_1_map, 0.54*(300.0+300.0));
+        assert_eq!(pix_1_map, 2);
+
+    }
 }
