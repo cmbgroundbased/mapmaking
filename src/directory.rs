@@ -17,7 +17,7 @@ pub struct DirStruct <'a> {
     _observation_time: String,
     entry_point: String,
 
-    phantom: &'a PhantomData<f32>,
+    _phantom: &'a PhantomData<f32>,
 }
 
 impl <'a> DirStruct <'a> {
@@ -86,7 +86,7 @@ impl <'a> DirStruct <'a> {
                                 None => "Empty",
                             }
                         ),
-            phantom: &PhantomData::<f32>,
+            _phantom: &PhantomData::<f32>,
         };
 
         Ok(data_struct)
@@ -177,8 +177,6 @@ impl <'a> DirStruct <'a> {
         );
         println!("{}", "OBS BUILT".bright_green());
 
-        
-        
         obs
     }
 }
