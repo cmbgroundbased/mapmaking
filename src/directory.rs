@@ -94,6 +94,10 @@ impl <'a> DirStruct <'a> {
 }
 
 impl <'a> DirStruct <'a> {
+
+    // We have to reimplement this functions in order to load the files in parallel 
+    // using the full disk bandwidth
+
     pub fn create_observations(&self, id_mc_ref: &str, sky_t: Vec<f32>) -> Obs {
         
         let mut tod_vec: Vec<Vec<f32>> = Vec::new();
