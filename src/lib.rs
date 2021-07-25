@@ -143,9 +143,7 @@ impl <'a> Obs <'a>{
         for i in 0..tod.len() {
             
             let t = tod[i].clone();
-            println!("{:?}", t);
             let p = pix[i].clone();
-            println!("{:?}", p);
             
             let tx = tx.clone();
             bin_pool.execute(move ||{

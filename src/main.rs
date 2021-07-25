@@ -43,7 +43,7 @@ fn main() {
 
 		my_pool.execute(move || {
 			split_mc(path, id);
-			sleep(std::time::Duration::from_millis(500));
+			//sleep(std::time::Duration::from_millis(500));
 		});
 	}
 }
