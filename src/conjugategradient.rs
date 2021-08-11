@@ -2,6 +2,9 @@
 
 pub mod linalgebra;
 use linalgebra::dot_prod;
+
+use crate::noisemodel::NoiseModel;
+
 // use std::time::{Duration, Instant, SystemTime};
 
 pub fn conjgrad(a: Box<dyn Fn(Vec<f32>, Vec<Vec<i32>>) -> Vec<f32>>, 
